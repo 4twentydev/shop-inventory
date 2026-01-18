@@ -4,6 +4,7 @@ import {
    GoogleGenerativeAI,
    SchemaType,
    type Tool,
+   type FunctionResponsePart,
 } from "@google/generative-ai";
 import { getCurrentUser } from "@/lib/auth";
 import { db, schema } from "@/lib/db";
@@ -635,7 +636,7 @@ If you find a part the user might want to see, include an action suggestion like
             : [];
 
       while (functionCalls.length > 0) {
-         const toolResponses = [];
+         const toolResponses: FunctionResponsePart[] = [];
          for (const toolCall of functionCalls) {
             let args: Record<string, unknown> = {};
             if (typeof toolCall.args === "object" && toolCall.args !== null) {
@@ -652,7 +653,7 @@ If you find a part the user might want to see, include an action suggestion like
                args as Record<string, unknown>,
             );
             toolResponses.push({
-               functionResponse: { name: toolCall.name, response: toolResult },
+               functionResponse: { name: toolCall.name, response: toolResult as object },
             });
          }
 
