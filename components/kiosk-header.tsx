@@ -22,7 +22,7 @@ interface CurrentUser {
 export function KioskHeader() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [idleSeconds, setIdleSeconds] = useState(0);
-  const [autoLockSeconds, setAutoLockSeconds] = useState(90);
+  const [autoLockSeconds, setAutoLockSeconds] = useState(900); // 15 minutes
   const router = useRouter();
   const lastActivityRef = useRef(Date.now());
 

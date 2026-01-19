@@ -975,17 +975,17 @@ export function AdminClient() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="autoLock">Auto-lock timeout (seconds)</Label>
+                <Label htmlFor="autoLock">Auto-lock timeout (minutes)</Label>
                 <Input
                   id="autoLock"
                   type="number"
-                  defaultValue={90}
-                  min={30}
-                  max={600}
+                  defaultValue={15}
+                  min={1}
+                  max={60}
                   className="w-32 mt-1"
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  Screen will lock after this many seconds of inactivity
+                  Screen will lock after this many minutes of inactivity
                 </p>
               </div>
             </CardContent>
