@@ -21,6 +21,8 @@ import {
   MapPin,
   History,
   Package,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -73,6 +75,8 @@ export function ItemClient({ partId }: { partId: string }) {
   const [wholeSkid, setWholeSkid] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [returnLocationId, setReturnLocationId] = useState<string>("");
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -128,6 +132,8 @@ export function ItemClient({ partId }: { partId: string }) {
     setQtyInput("");
     setWholeSkid(false);
     setNote("");
+    setReturnLocationId(location.locationId);
+    setShowLocationPicker(false);
   };
 
   const handleSubmitMove = async () => {
@@ -151,6 +157,18 @@ export function ItemClient({ partId }: { partId: string }) {
       return;
     }
 
+    // For returns, use the selected return location; for takes, use original
+    const targetLocationId =
+      moveDialog.type === "return" ? returnLocationId : moveDialog.locationId;
+    const targetLocation =
+      moveDialog.type === "return"
+        ? inventory.find((loc) => loc.locationId === returnLocationId)
+        : null;
+    const targetLocationCode =
+      moveDialog.type === "return" && targetLocation
+        ? targetLocation.locationCode
+        : moveDialog.locationCode;
+
     setSubmitting(true);
 
     try {
@@ -159,7 +177,7 @@ export function ItemClient({ partId }: { partId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           partId,
-          locationId: moveDialog.locationId,
+          locationId: targetLocationId,
           deltaQty: moveDialog.type === "take" ? -finalQty : finalQty,
           note: note || undefined,
         }),
@@ -174,7 +192,7 @@ export function ItemClient({ partId }: { partId: string }) {
         title: moveDialog.type === "take" ? "Pulled" : "Returned",
         description: `${finalQty} x ${data?.part.partName} ${
           moveDialog.type === "take" ? "pulled from" : "returned to"
-        } ${moveDialog.locationCode}`,
+        } ${targetLocationCode}`,
         variant: "success",
       });
 
@@ -386,7 +404,9 @@ export function ItemClient({ partId }: { partId: string }) {
               ) : (
                 <>
                   <Plus className="w-5 h-5 text-success" />
-                  Return to {moveDialog?.locationCode}
+                  Return to{" "}
+                  {inventory.find((loc) => loc.locationId === returnLocationId)
+                    ?.locationCode || moveDialog?.locationCode}
                 </>
               )}
             </DialogTitle>
@@ -404,6 +424,46 @@ export function ItemClient({ partId }: { partId: string }) {
                 </div>
               </div>
             </div>
+
+            {/* Location picker for returns */}
+            {moveDialog?.type === "return" && inventory.length > 1 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationPicker(!showLocationPicker)}
+                  className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showLocationPicker ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                  Change location
+                </button>
+                {showLocationPicker && (
+                  <div className="mt-2 space-y-1">
+                    {inventory.map((loc) => (
+                      <button
+                        key={loc.locationId}
+                        type="button"
+                        onClick={() => {
+                          setReturnLocationId(loc.locationId);
+                          setShowLocationPicker(false);
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-md text-left text-sm transition-colors ${
+                          returnLocationId === loc.locationId
+                            ? "bg-primary/10 border border-primary"
+                            : "bg-muted hover:bg-muted/80 border border-transparent"
+                        }`}
+                      >
+                        <span className="font-medium">{loc.locationCode}</span>
+                        <span className="text-muted-foreground">qty: {loc.qty}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Quantity */}
             <div>
