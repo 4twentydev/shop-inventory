@@ -34,6 +34,11 @@ import {
   Warehouse,
   MinusCircle,
   PlusCircle,
+  ArrowRight,
+  Undo2,
+  History,
+  Filter,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -210,6 +215,26 @@ export function AdminClient() {
   const [loadingNotificationDetail, setLoadingNotificationDetail] = useState(false);
   const [markingAllRead, setMarkingAllRead] = useState(false);
 
+  // Material Routing state
+  const [moves, setMoves] = useState<any[]>([]);
+  const [loadingMoves, setLoadingMoves] = useState(false);
+  const [movesFilters, setMovesFilters] = useState({
+    partId: "",
+    locationId: "",
+    userId: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [transferDialog, setTransferDialog] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    partId: "",
+    fromLocationId: "",
+    toLocationId: "",
+    qty: "",
+    note: "",
+  });
+  const [transferring, setTransferring] = useState(false);
+
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
@@ -323,6 +348,133 @@ export function AdminClient() {
       });
     } finally {
       setMarkingAllRead(false);
+    }
+  };
+
+  // Material Routing functions
+  const fetchMoves = useCallback(async () => {
+    setLoadingMoves(true);
+    try {
+      const params = new URLSearchParams();
+      if (movesFilters.partId) params.set("partId", movesFilters.partId);
+      if (movesFilters.locationId) params.set("locationId", movesFilters.locationId);
+      if (movesFilters.userId) params.set("userId", movesFilters.userId);
+      if (movesFilters.startDate) params.set("startDate", movesFilters.startDate);
+      if (movesFilters.endDate) params.set("endDate", movesFilters.endDate);
+      params.set("limit", "100");
+
+      const res = await fetch(`/api/admin/moves?${params}`);
+      const data = await res.json();
+      if (data.moves) {
+        setMoves(data.moves);
+      }
+    } catch (error) {
+      console.error("Failed to fetch moves:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load move history",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingMoves(false);
+    }
+  }, [movesFilters, toast]);
+
+  const handleTransfer = async () => {
+    if (!transferForm.partId || !transferForm.fromLocationId || !transferForm.toLocationId || !transferForm.qty) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const qty = parseInt(transferForm.qty);
+    if (isNaN(qty) || qty <= 0) {
+      toast({
+        title: "Invalid quantity",
+        description: "Quantity must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setTransferring(true);
+    try {
+      const res = await fetch("/api/admin/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partId: transferForm.partId,
+          fromLocationId: transferForm.fromLocationId,
+          toLocationId: transferForm.toLocationId,
+          qty,
+          note: transferForm.note || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Transfer failed");
+      }
+
+      toast({
+        title: "Transfer complete",
+        description: "Material has been transferred successfully",
+        variant: "success",
+      });
+
+      setTransferDialog(false);
+      setTransferForm({
+        partId: "",
+        fromLocationId: "",
+        toLocationId: "",
+        qty: "",
+        note: "",
+      });
+      fetchMoves();
+    } catch (error) {
+      toast({
+        title: "Transfer failed",
+        description: error instanceof Error ? error.message : "Failed to transfer material",
+        variant: "destructive",
+      });
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const handleUndoMove = async (moveId: string) => {
+    if (!confirm("Are you sure you want to undo this move? This will create a compensating move.")) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/moves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ moveId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Undo failed");
+      }
+
+      toast({
+        title: "Move undone",
+        description: "A compensating move has been created",
+        variant: "success",
+      });
+
+      fetchMoves();
+    } catch (error) {
+      toast({
+        title: "Undo failed",
+        description: error instanceof Error ? error.message : "Failed to undo move",
+        variant: "destructive",
+      });
     }
   };
 
@@ -728,7 +880,7 @@ export function AdminClient() {
       <h1 className="text-2xl font-bold">Admin Panel</h1>
 
       <Tabs defaultValue="users">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
             Users
@@ -736,6 +888,10 @@ export function AdminClient() {
           <TabsTrigger value="parts" className="flex items-center gap-2" onClick={() => fetchParts()}>
             <Package className="w-4 h-4" />
             Parts
+          </TabsTrigger>
+          <TabsTrigger value="routing" className="flex items-center gap-2" onClick={() => fetchMoves()}>
+            <Warehouse className="w-4 h-4" />
+            Routing
           </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Upload className="w-4 h-4" />
@@ -1174,6 +1330,116 @@ export function AdminClient() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Material Routing Tab */}
+        <TabsContent value="routing" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">Material Routing & Movement</h2>
+            <Button onClick={() => setTransferDialog(true)}>
+              <ArrowRight className="w-4 h-4 mr-2" />
+              Transfer Material
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="w-5 h-5" />
+                Move History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingMoves ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : moves.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No moves found
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="border-b">
+                        <tr className="text-left">
+                          <th className="pb-2 pr-4">Date & Time</th>
+                          <th className="pb-2 pr-4">Part</th>
+                          <th className="pb-2 pr-4">Location</th>
+                          <th className="pb-2 pr-4">Qty</th>
+                          <th className="pb-2 pr-4">User</th>
+                          <th className="pb-2 pr-4">Reason</th>
+                          <th className="pb-2">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {moves.map((move) => (
+                          <tr key={move.id} className="border-b last:border-0">
+                            <td className="py-3 pr-4">
+                              <div className="text-xs">
+                                {new Date(move.ts).toLocaleDateString()}
+                                <br />
+                                {new Date(move.ts).toLocaleTimeString()}
+                              </div>
+                            </td>
+                            <td className="py-3 pr-4">
+                              <div className="font-medium">{move.part.partId}</div>
+                              <div className="text-xs text-muted-foreground truncate max-w-[150px]">
+                                {move.part.name}
+                              </div>
+                            </td>
+                            <td className="py-3 pr-4">
+                              <div className="font-medium">{move.location.locationId}</div>
+                              {move.location.type && (
+                                <div className="text-xs text-muted-foreground">
+                                  {move.location.type}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 pr-4">
+                              <span
+                                className={`font-medium ${
+                                  move.deltaQty > 0 ? "text-green-600" : "text-red-600"
+                                }`}
+                              >
+                                {move.deltaQty > 0 ? "+" : ""}
+                                {move.deltaQty}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-4">
+                              <div>{move.user.name}</div>
+                              <div className="text-xs text-muted-foreground">{move.user.role}</div>
+                            </td>
+                            <td className="py-3 pr-4">
+                              <div className="text-xs">
+                                {move.reason || "-"}
+                                {move.note && (
+                                  <div className="text-muted-foreground mt-0.5">
+                                    {move.note}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUndoMove(move.id)}
+                                title="Undo this move"
+                              >
+                                <Undo2 className="w-3 h-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Settings Tab */}
@@ -1884,6 +2150,97 @@ export function AdminClient() {
               onClick={() => setInventoryDialog({ open: false, part: null })}
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Material Dialog */}
+      <Dialog open={transferDialog} onOpenChange={setTransferDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transfer Material Between Locations</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="transferPart">Part ID *</Label>
+              <Input
+                id="transferPart"
+                value={transferForm.partId}
+                onChange={(e) => setTransferForm({ ...transferForm, partId: e.target.value })}
+                placeholder="Enter part UUID"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="fromLocation">From Location *</Label>
+              <select
+                id="fromLocation"
+                value={transferForm.fromLocationId}
+                onChange={(e) =>
+                  setTransferForm({ ...transferForm, fromLocationId: e.target.value })
+                }
+                className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+              >
+                <option value="">Select source location...</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.locationId} {loc.type && `- ${loc.type}`} {loc.zone && `(${loc.zone})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <Label htmlFor="toLocation">To Location *</Label>
+              <select
+                id="toLocation"
+                value={transferForm.toLocationId}
+                onChange={(e) =>
+                  setTransferForm({ ...transferForm, toLocationId: e.target.value })
+                }
+                className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+              >
+                <option value="">Select destination location...</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.locationId} {loc.type && `- ${loc.type}`} {loc.zone && `(${loc.zone})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <Label htmlFor="transferQty">Quantity *</Label>
+              <Input
+                id="transferQty"
+                type="number"
+                min="1"
+                value={transferForm.qty}
+                onChange={(e) => setTransferForm({ ...transferForm, qty: e.target.value })}
+                placeholder="Enter quantity"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="transferNote">Note (optional)</Label>
+              <Input
+                id="transferNote"
+                value={transferForm.note}
+                onChange={(e) => setTransferForm({ ...transferForm, note: e.target.value })}
+                placeholder="Reason for transfer"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleTransfer} disabled={transferring}>
+              {transferring && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Transfer
             </Button>
           </DialogFooter>
         </DialogContent>

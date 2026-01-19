@@ -11,7 +11,8 @@
       "db:migrate": "drizzle-kit migrate",
       "db:push": "drizzle-kit push",
       "db:studio": "drizzle-kit studio",
-      "db:seed": "bun run scripts/seed-admin.ts"
+      "db:seed": "bun run scripts/seed-admin.ts",
+     "db:seed-destinations": "bun run scripts/seed-destinations.ts"
    },
    "dependencies": {
       "@google/generative-ai": "^0.21.0",

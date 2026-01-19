@@ -77,6 +77,14 @@ export function ItemClient({ partId }: { partId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [returnLocationId, setReturnLocationId] = useState<string>("");
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [destinationId, setDestinationId] = useState<string>("");
+  const [showDestinationPicker, setShowDestinationPicker] = useState(false);
+  const [destinations, setDestinations] = useState<{
+    id: string;
+    locationId: string;
+    type: string | null;
+    zone: string | null;
+  }[]>([]);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -106,7 +114,21 @@ export function ItemClient({ partId }: { partId: string }) {
 
   useEffect(() => {
     fetchData();
+    fetchDestinations();
   }, [fetchData]);
+
+  const fetchDestinations = async () => {
+    try {
+      const res = await fetch("/api/admin/locations");
+      const data = await res.json();
+      if (data.locations) {
+        // Filter for destination type locations
+        setDestinations(data.locations.filter((loc: any) => loc.type === "Destination"));
+      }
+    } catch (error) {
+      console.error("Failed to fetch destinations:", error);
+    }
+  };
 
   const handleTake = (location: InventoryLocation) => {
     setMoveDialog({
@@ -119,6 +141,8 @@ export function ItemClient({ partId }: { partId: string }) {
     setQtyInput("");
     setWholeSkid(false);
     setNote("");
+    setDestinationId("");
+    setShowDestinationPicker(false);
   };
 
   const handleReturn = (location: InventoryLocation) => {
@@ -157,44 +181,72 @@ export function ItemClient({ partId }: { partId: string }) {
       return;
     }
 
-    // For returns, use the selected return location; for takes, use original
-    const targetLocationId =
-      moveDialog.type === "return" ? returnLocationId : moveDialog.locationId;
-    const targetLocation =
-      moveDialog.type === "return"
-        ? inventory.find((loc) => loc.locationId === returnLocationId)
-        : null;
-    const targetLocationCode =
-      moveDialog.type === "return" && targetLocation
-        ? targetLocation.locationCode
-        : moveDialog.locationCode;
-
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/move", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          partId,
-          locationId: targetLocationId,
-          deltaQty: moveDialog.type === "take" ? -finalQty : finalQty,
-          note: note || undefined,
-        }),
-      });
+      // If pulling to a destination, use the transfer API
+      if (moveDialog.type === "take" && destinationId) {
+        const destination = destinations.find((d) => d.id === destinationId);
+        const res = await fetch("/api/admin/transfer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            partId,
+            fromLocationId: moveDialog.locationId,
+            toLocationId: destinationId,
+            qty: finalQty,
+            note: note || undefined,
+          }),
+        });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Move failed");
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Transfer failed");
+        }
+
+        toast({
+          title: "Transferred",
+          description: `${finalQty} x ${data?.part.partName} moved from ${moveDialog.locationCode} to ${destination?.locationId}`,
+          variant: "success",
+        });
+      } else {
+        // Standard move (pull without destination or return)
+        // For returns, use the selected return location; for takes, use original
+        const targetLocationId =
+          moveDialog.type === "return" ? returnLocationId : moveDialog.locationId;
+        const targetLocation =
+          moveDialog.type === "return"
+            ? inventory.find((loc) => loc.locationId === returnLocationId)
+            : null;
+        const targetLocationCode =
+          moveDialog.type === "return" && targetLocation
+            ? targetLocation.locationCode
+            : moveDialog.locationCode;
+
+        const res = await fetch("/api/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            partId,
+            locationId: targetLocationId,
+            deltaQty: moveDialog.type === "take" ? -finalQty : finalQty,
+            note: note || undefined,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Move failed");
+        }
+
+        toast({
+          title: moveDialog.type === "take" ? "Pulled" : "Returned",
+          description: `${finalQty} x ${data?.part.partName} ${
+            moveDialog.type === "take" ? "pulled from" : "returned to"
+          } ${targetLocationCode}`,
+          variant: "success",
+        });
       }
-
-      toast({
-        title: moveDialog.type === "take" ? "Pulled" : "Returned",
-        description: `${finalQty} x ${data?.part.partName} ${
-          moveDialog.type === "take" ? "pulled from" : "returned to"
-        } ${targetLocationCode}`,
-        variant: "success",
-      });
 
       setMoveDialog(null);
       fetchData();
@@ -458,6 +510,71 @@ export function ItemClient({ partId }: { partId: string }) {
                       >
                         <span className="font-medium">{loc.locationCode}</span>
                         <span className="text-muted-foreground">qty: {loc.qty}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Destination picker for pulls */}
+            {moveDialog?.type === "take" && destinations.length > 0 && (
+              <div>
+                <Label className="mb-2 block">Where is this material going?</Label>
+                <button
+                  type="button"
+                  onClick={() => setShowDestinationPicker(!showDestinationPicker)}
+                  className={`w-full flex items-center justify-between p-3 rounded-md border transition-colors ${
+                    destinationId
+                      ? "bg-primary/10 border-primary"
+                      : "bg-muted hover:bg-muted/80 border-border"
+                  }`}
+                >
+                  <span className="font-medium">
+                    {destinationId
+                      ? destinations.find((d) => d.id === destinationId)?.locationId
+                      : "Select destination (optional)"}
+                  </span>
+                  {showDestinationPicker ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </button>
+                {showDestinationPicker && (
+                  <div className="mt-2 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDestinationId("");
+                        setShowDestinationPicker(false);
+                      }}
+                      className={`w-full p-2 rounded-md text-left text-sm transition-colors ${
+                        !destinationId
+                          ? "bg-primary/10 border border-primary"
+                          : "bg-muted hover:bg-muted/80 border border-transparent"
+                      }`}
+                    >
+                      <span className="text-muted-foreground">None (just pull)</span>
+                    </button>
+                    {destinations.map((dest) => (
+                      <button
+                        key={dest.id}
+                        type="button"
+                        onClick={() => {
+                          setDestinationId(dest.id);
+                          setShowDestinationPicker(false);
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-md text-left text-sm transition-colors ${
+                          destinationId === dest.id
+                            ? "bg-primary/10 border border-primary"
+                            : "bg-muted hover:bg-muted/80 border border-transparent"
+                        }`}
+                      >
+                        <span className="font-medium">{dest.locationId}</span>
+                        {dest.zone && (
+                          <span className="text-muted-foreground text-xs">{dest.zone}</span>
+                        )}
                       </button>
                     ))}
                   </div>
