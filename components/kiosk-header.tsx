@@ -10,8 +10,17 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Lock, User, Settings, MessageSquare, Menu } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Lock, User, Settings, MessageSquare, Menu, AlertTriangle, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useToast } from "@/hooks/use-toast";
 
 interface CurrentUser {
   id: string;
@@ -23,8 +32,12 @@ export function KioskHeader() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [idleSeconds, setIdleSeconds] = useState(0);
   const [autoLockSeconds, setAutoLockSeconds] = useState(900); // 15 minutes
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
   const router = useRouter();
   const lastActivityRef = useRef(Date.now());
+  const { toast } = useToast();
 
   // Fetch current user
   useEffect(() => {
@@ -77,6 +90,34 @@ export function KioskHeader() {
     router.refresh();
   };
 
+  const handleSubmitReport = async () => {
+    if (!reportMessage.trim()) {
+      toast({ title: "Please enter a message", variant: "destructive" });
+      return;
+    }
+
+    setSubmittingReport(true);
+    try {
+      const res = await fetch("/api/report-problem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: reportMessage }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to send report");
+      }
+
+      toast({ title: "Report sent", description: "Thank you for your feedback", variant: "success" });
+      setReportDialogOpen(false);
+      setReportMessage("");
+    } catch {
+      toast({ title: "Error", description: "Failed to send report", variant: "destructive" });
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
+
   const remainingSeconds = Math.max(0, autoLockSeconds - idleSeconds);
   const showWarning = remainingSeconds <= 30 && remainingSeconds > 0;
 
@@ -123,6 +164,10 @@ export function KioskHeader() {
                     Admin
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => setReportDialogOpen(true)}>
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Report Problem
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLock}>
                   <Lock className="h-4 w-4 mr-2" />
@@ -133,6 +178,39 @@ export function KioskHeader() {
           </div>
         </div>
       </div>
+
+      {/* Report Problem Dialog */}
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Report a Problem
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="reportMessage" className="mb-2 block">
+              Describe the issue
+            </Label>
+            <textarea
+              id="reportMessage"
+              value={reportMessage}
+              onChange={(e) => setReportMessage(e.target.value)}
+              placeholder="What went wrong?"
+              className="w-full h-32 px-3 py-2 text-sm rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitReport} disabled={submittingReport}>
+              {submittingReport && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Send Report
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }
