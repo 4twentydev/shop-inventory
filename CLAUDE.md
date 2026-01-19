@@ -49,6 +49,8 @@ Note: No test suite is currently configured.
 - `inventoryMoves` - Audit trail of all movements
 - `settings` - App configuration key/value store
 
+**Page/Client Component Pattern**: Pages are server components that delegate to `*-client.tsx` for interactivity (e.g., `app/kiosk/page.tsx` renders `<KioskClient />`). Client components handle state, effects, and user interactions.
+
 ### Route Structure
 - `/lock` - PIN entry (public)
 - `/kiosk` - Main search interface
@@ -59,3 +61,18 @@ Note: No test suite is currently configured.
 ### Environment Variables
 Required: `DATABASE_URL`, `SESSION_SECRET`
 Optional: `GEMINI_API_KEY`, `GEMINI_MODEL` (defaults to gemini-1.5-flash)
+
+### Excel Import Format
+The admin import expects workbooks with these sheets:
+- **Parts**: `Part_ID`, `Part_Name`, `Color`, `Category`
+- **Locations**: `Location_ID`, `Type`, `Zone`
+- **Inventory sheets** (any of: `Extrusion_Inventory`, `ACM_Inventory`, `SPL_inventory`, `HPL_Inventory`, `Rivet_Inventory`, `Misc_Inventory`): `Part_ID`, `Part_Name`, `Color`, `Location_ID`, `Quantity`
+
+### Styling
+UI follows `STYLE_GUIDE.md` - a warm sand/beige theme with Tailwind CSS v4 custom properties and shadcn/ui components. Key colors: `--accent-primary` (warm orange for CTAs), `--accent-secondary` (blue).
+
+### Conventions
+- TypeScript with 2-space indentation
+- Commits use conventional prefixes: `feat:`, `fix:`, `style:`, `docs:`
+- Components: PascalCase; files: kebab-case
+- Use path aliases: `@/lib/...`, `@/components/...`
