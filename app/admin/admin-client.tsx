@@ -27,6 +27,10 @@ import {
   Package,
   Search,
   Trash2,
+  Bell,
+  Mail,
+  MailOpen,
+  CheckCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,6 +75,39 @@ interface PartsPagination {
   limit: number;
   totalCount: number;
   totalPages: number;
+}
+
+interface NotificationData {
+  id: string;
+  type: string;
+  title: string;
+  summary: string;
+  date: string;
+  emailSentAt: string | null;
+  createdAt: string;
+  isRead: boolean;
+}
+
+interface NotificationMoveData {
+  userName: string;
+  partId: string;
+  partName: string;
+  locationId: string;
+  deltaQty: number;
+  reason: string | null;
+  note: string | null;
+  ts: string;
+}
+
+interface NotificationDetail {
+  id: string;
+  type: string;
+  title: string;
+  summary: string;
+  date: string;
+  emailSentAt: string | null;
+  createdAt: string;
+  data: NotificationMoveData[];
 }
 
 export function AdminClient() {
@@ -120,6 +157,17 @@ export function AdminClient() {
     unit: "",
   });
 
+  // Notifications state
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationDialog, setNotificationDialog] = useState<{
+    open: boolean;
+    notification: NotificationDetail | null;
+  }>({ open: false, notification: null });
+  const [loadingNotificationDetail, setLoadingNotificationDetail] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
@@ -163,6 +211,78 @@ export function AdminClient() {
       setLoadingParts(false);
     }
   }, [partsSearch, partsCategory]);
+
+  const fetchNotifications = useCallback(async () => {
+    setLoadingNotifications(true);
+    try {
+      const res = await fetch("/api/admin/notifications");
+      const data = await res.json();
+      if (data.notifications) {
+        setNotifications(data.notifications);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  }, []);
+
+  const openNotificationDetail = async (id: string) => {
+    setLoadingNotificationDetail(true);
+    setNotificationDialog({ open: true, notification: null });
+    try {
+      const res = await fetch(`/api/admin/notifications/${id}`);
+      const data = await res.json();
+      if (data.notification) {
+        setNotificationDialog({ open: true, notification: data.notification });
+        // Update the list to mark this one as read
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+    } catch (error) {
+      console.error("Failed to fetch notification detail:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load notification details",
+        variant: "destructive",
+      });
+      setNotificationDialog({ open: false, notification: null });
+    } finally {
+      setLoadingNotificationDetail(false);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    setMarkingAllRead(true);
+    try {
+      const res = await fetch("/api/admin/notifications/mark-read", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.marked !== undefined) {
+        setNotifications((prev) =>
+          prev.map((n) => ({ ...n, isRead: true }))
+        );
+        setUnreadCount(0);
+        toast({
+          title: "Notifications marked as read",
+          variant: "success",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to mark all read:", error);
+      toast({
+        title: "Error",
+        description: "Failed to mark notifications as read",
+        variant: "destructive",
+      });
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
 
   const openEditPart = (part: PartData) => {
     setEditPartDialog({ open: true, part });
@@ -413,7 +533,7 @@ export function AdminClient() {
       <h1 className="text-2xl font-bold">Admin Panel</h1>
 
       <Tabs defaultValue="users">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
             Users
@@ -425,6 +545,17 @@ export function AdminClient() {
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Upload className="w-4 h-4" />
             Import
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2" onClick={() => fetchNotifications()}>
+            <Bell className="w-4 h-4" />
+            <span className="flex items-center gap-1">
+              Notifications
+              {unreadCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </span>
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
@@ -749,6 +880,93 @@ export function AdminClient() {
           </Card>
         </TabsContent>
 
+        {/* Notifications Tab */}
+        <TabsContent value="notifications" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">Notifications</h2>
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMarkAllRead}
+                disabled={markingAllRead}
+              >
+                {markingAllRead ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <CheckCheck className="w-4 h-4 mr-2" />
+                )}
+                Mark all read
+              </Button>
+            )}
+          </div>
+
+          {loadingNotifications ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          ) : notifications.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No notifications yet</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map((notification) => (
+                <Card
+                  key={notification.id}
+                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                    !notification.isRead ? "border-primary/50 bg-primary/5" : ""
+                  }`}
+                  onClick={() => openNotificationDetail(notification.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-1 ${
+                          notification.isRead
+                            ? "text-muted-foreground"
+                            : "text-primary"
+                        }`}
+                      >
+                        {notification.isRead ? (
+                          <MailOpen className="w-5 h-5" />
+                        ) : (
+                          <Mail className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`font-medium ${
+                              !notification.isRead ? "text-foreground" : ""
+                            }`}
+                          >
+                            {notification.title}
+                          </span>
+                          {notification.emailSentAt && (
+                            <span className="text-xs text-muted-foreground">
+                              (Email sent)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {notification.summary}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(notification.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
         {/* Settings Tab */}
         <TabsContent value="settings" className="space-y-4">
           <Card>
@@ -1010,6 +1228,149 @@ export function AdminClient() {
             <Button variant="destructive" onClick={handleDeletePart} disabled={deletingPart}>
               {deletingPart && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notification Detail Dialog */}
+      <Dialog
+        open={notificationDialog.open}
+        onOpenChange={(open) =>
+          !open && setNotificationDialog({ open: false, notification: null })
+        }
+      >
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {notificationDialog.notification?.title || "Loading..."}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4">
+            {loadingNotificationDetail ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : notificationDialog.notification ? (
+              <div className="space-y-6">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-red-50 rounded-lg">
+                    <div className="text-2xl font-bold text-red-700">
+                      {
+                        notificationDialog.notification.data.filter(
+                          (m) => m.deltaQty < 0
+                        ).length
+                      }
+                    </div>
+                    <div className="text-sm text-muted-foreground">Pulls</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-700">
+                      {
+                        notificationDialog.notification.data.filter(
+                          (m) => m.deltaQty > 0
+                        ).length
+                      }
+                    </div>
+                    <div className="text-sm text-muted-foreground">Returns</div>
+                  </div>
+                  <div className="text-center p-4 bg-muted rounded-lg">
+                    <div className="text-2xl font-bold">
+                      {notificationDialog.notification.data.length}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Moves</div>
+                  </div>
+                </div>
+
+                {/* Moves grouped by user */}
+                {(() => {
+                  const movesByUser: Record<string, NotificationMoveData[]> = {};
+                  for (const move of notificationDialog.notification.data) {
+                    if (!movesByUser[move.userName]) {
+                      movesByUser[move.userName] = [];
+                    }
+                    movesByUser[move.userName].push(move);
+                  }
+
+                  return Object.entries(movesByUser).map(([userName, moves]) => (
+                    <div key={userName} className="space-y-2">
+                      <div className="flex items-center gap-2 bg-muted px-3 py-2 rounded-t-lg">
+                        <User className="w-4 h-4" />
+                        <span className="font-medium">{userName}</span>
+                        <span className="text-sm text-muted-foreground">
+                          ({moves.length} move{moves.length !== 1 ? "s" : ""})
+                        </span>
+                      </div>
+                      <div className="border rounded-b-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium">Time</th>
+                              <th className="px-3 py-2 text-left font-medium">Action</th>
+                              <th className="px-3 py-2 text-left font-medium">Qty</th>
+                              <th className="px-3 py-2 text-left font-medium">Part</th>
+                              <th className="px-3 py-2 text-left font-medium">Location</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {moves.map((move, idx) => (
+                              <tr key={idx} className="border-t">
+                                <td className="px-3 py-2">
+                                  {new Date(move.ts).toLocaleTimeString("en-US", {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      move.deltaQty < 0
+                                        ? "bg-red-100 text-red-700"
+                                        : "bg-green-100 text-green-700"
+                                    }`}
+                                  >
+                                    {move.deltaQty < 0 ? "Pull" : "Return"}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 font-medium">
+                                  {Math.abs(move.deltaQty)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="font-medium">{move.partId}</div>
+                                  <div className="text-muted-foreground text-xs truncate max-w-[200px]">
+                                    {move.partName}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2">{move.locationId}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ));
+                })()}
+
+                {notificationDialog.notification.data.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No inventory moves for this day.
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setNotificationDialog({ open: false, notification: null })
+              }
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

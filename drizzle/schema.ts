@@ -13,6 +13,7 @@ import { relations } from "drizzle-orm";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
+export const notificationTypeEnum = pgEnum("notification_type", ["daily_summary"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -107,10 +108,41 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Admin notifications table
+export const adminNotifications = pgTable("admin_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  type: notificationTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull(),
+  data: text("data").notNull(), // JSON with move details
+  date: timestamp("date").notNull(),
+  emailSentAt: timestamp("email_sent_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Admin notification reads table (tracks which users have read which notifications)
+export const adminNotificationReads = pgTable(
+  "admin_notification_reads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => adminNotifications.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("notification_read_unique").on(table.notificationId, table.userId),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   inventoryMoves: many(inventoryMoves),
+  notificationReads: many(adminNotificationReads),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
@@ -156,6 +188,21 @@ export const inventoryMovesRelations = relations(inventoryMoves, ({ one }) => ({
   }),
 }));
 
+export const adminNotificationsRelations = relations(adminNotifications, ({ many }) => ({
+  reads: many(adminNotificationReads),
+}));
+
+export const adminNotificationReadsRelations = relations(adminNotificationReads, ({ one }) => ({
+  notification: one(adminNotifications, {
+    fields: [adminNotificationReads.notificationId],
+    references: [adminNotifications.id],
+  }),
+  user: one(users, {
+    fields: [adminNotificationReads.userId],
+    references: [users.id],
+  }),
+}));
+
 // Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -167,3 +214,5 @@ export type NewLocation = typeof locations.$inferInsert;
 export type Inventory = typeof inventory.$inferSelect;
 export type InventoryMove = typeof inventoryMoves.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
+export type AdminNotification = typeof adminNotifications.$inferSelect;
+export type AdminNotificationRead = typeof adminNotificationReads.$inferSelect;
