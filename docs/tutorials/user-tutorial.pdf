@@ -1,0 +1,59 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 4 0 R >> >> >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 562 >>
+stream
+BT
+/F1 12 Tf
+72 720 Td
+16 TL
+(Shop Inventory User Tutorial) Tj
+T*
+(Purpose: Find parts quickly and record TAKE/RETURN moves.) Tj
+T*
+() Tj
+T*
+(1\) Sign in with your PIN at /lock.) Tj
+T*
+(2\) Search by part ID, name, color, or category.) Tj
+T*
+(3\) Select a part to open the detail view.) Tj
+T*
+(4\) Choose TAKE or RETURN and a quantity chip.) Tj
+T*
+(5\) Confirm the move; the inventory updates immediately.) Tj
+T*
+(6\) Use the AI assistant for quick questions \(if enabled\).) Tj
+T*
+() Tj
+T*
+(Tip: If a part is missing, report it to an admin for review.) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000019 00000 n 
+0000000068 00000 n 
+0000000125 00000 n 
+0000000251 00000 n 
+0000000321 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+934
+%%EOF
