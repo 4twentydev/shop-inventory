@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         part: {
           id: schema.parts.id,
           partId: schema.parts.partId,
-          name: schema.parts.name,
+          name: schema.parts.partName,
           color: schema.parts.color,
           category: schema.parts.category,
         },
