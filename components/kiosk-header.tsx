@@ -85,10 +85,7 @@ export function KioskHeader() {
       <div className="mx-auto px-6 py-4 max-w-5xl">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-accent-secondary font-medium">
-              Elward Systems
-            </p>
-            <h1 className="text-lg font-semibold text-foreground">Shop Inventory</h1>
+            <h1 className="text-xl font-semibold text-foreground">Shop Inventory</h1>
           </div>
 
           <div className="flex items-center gap-3">
