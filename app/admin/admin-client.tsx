@@ -24,6 +24,9 @@ import {
   AlertCircle,
   Shield,
   User,
+  Package,
+  Search,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,8 +44,33 @@ interface ImportResult {
     parts: { created: number; updated: number; errors: string[] };
     locations: { created: number; updated: number; errors: string[] };
     inventory: { created: number; updated: number; errors: string[] };
+    cleared?: boolean;
   };
   error?: string;
+}
+
+interface PartData {
+  id: string;
+  partId: string;
+  partName: string;
+  color: string | null;
+  category: string | null;
+  jobNumber: string | null;
+  sizeW: number | null;
+  sizeL: number | null;
+  thickness: number | null;
+  brand: string | null;
+  pallet: string | null;
+  unit: string | null;
+  totalQty: number;
+  createdAt: string;
+}
+
+interface PartsPagination {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
 }
 
 export function AdminClient() {
@@ -60,6 +88,37 @@ export function AdminClient() {
 
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [clearBeforeImport, setClearBeforeImport] = useState(false);
+
+  // Parts state
+  const [parts, setParts] = useState<PartData[]>([]);
+  const [loadingParts, setLoadingParts] = useState(false);
+  const [partsPagination, setPartsPagination] = useState<PartsPagination | null>(null);
+  const [partsSearch, setPartsSearch] = useState("");
+  const [partsCategory, setPartsCategory] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [editPartDialog, setEditPartDialog] = useState<{
+    open: boolean;
+    part: PartData | null;
+  }>({ open: false, part: null });
+  const [deletePartDialog, setDeletePartDialog] = useState<{
+    open: boolean;
+    part: PartData | null;
+  }>({ open: false, part: null });
+  const [savingPart, setSavingPart] = useState(false);
+  const [deletingPart, setDeletingPart] = useState(false);
+  const [editForm, setEditForm] = useState({
+    partName: "",
+    color: "",
+    category: "",
+    jobNumber: "",
+    sizeW: "",
+    sizeL: "",
+    thickness: "",
+    brand: "",
+    pallet: "",
+    unit: "",
+  });
 
   const { toast } = useToast();
 
@@ -81,6 +140,108 @@ export function AdminClient() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  const fetchParts = useCallback(async (page = 1) => {
+    setLoadingParts(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", "20");
+      if (partsSearch) params.set("query", partsSearch);
+      if (partsCategory) params.set("category", partsCategory);
+
+      const res = await fetch(`/api/admin/parts?${params}`);
+      const data = await res.json();
+      if (data.parts) {
+        setParts(data.parts);
+        setPartsPagination(data.pagination);
+        setCategories(data.categories || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch parts:", error);
+    } finally {
+      setLoadingParts(false);
+    }
+  }, [partsSearch, partsCategory]);
+
+  const openEditPart = (part: PartData) => {
+    setEditPartDialog({ open: true, part });
+    setEditForm({
+      partName: part.partName || "",
+      color: part.color || "",
+      category: part.category || "",
+      jobNumber: part.jobNumber || "",
+      sizeW: part.sizeW?.toString() || "",
+      sizeL: part.sizeL?.toString() || "",
+      thickness: part.thickness?.toString() || "",
+      brand: part.brand || "",
+      pallet: part.pallet || "",
+      unit: part.unit || "",
+    });
+  };
+
+  const handleSavePart = async () => {
+    if (!editPartDialog.part) return;
+
+    if (!editForm.partName.trim()) {
+      toast({ title: "Part name is required", variant: "destructive" });
+      return;
+    }
+
+    setSavingPart(true);
+    try {
+      const res = await fetch(`/api/admin/parts/${editPartDialog.part.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save part");
+      }
+
+      toast({ title: "Part updated", variant: "success" });
+      setEditPartDialog({ open: false, part: null });
+      fetchParts(partsPagination?.page || 1);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to save part",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPart(false);
+    }
+  };
+
+  const handleDeletePart = async () => {
+    if (!deletePartDialog.part) return;
+
+    setDeletingPart(true);
+    try {
+      const res = await fetch(`/api/admin/parts/${deletePartDialog.part.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete part");
+      }
+
+      toast({ title: "Part deleted", variant: "success" });
+      setDeletePartDialog({ open: false, part: null });
+      fetchParts(partsPagination?.page || 1);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to delete part",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingPart(false);
+    }
+  };
 
   const openCreateUser = () => {
     setUserDialog({ open: true, mode: "create" });
@@ -211,6 +372,7 @@ export function AdminClient() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("clearBeforeImport", String(clearBeforeImport));
 
       const res = await fetch("/api/admin/import", {
         method: "POST",
@@ -251,10 +413,14 @@ export function AdminClient() {
       <h1 className="text-2xl font-bold">Admin Panel</h1>
 
       <Tabs defaultValue="users">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
             Users
+          </TabsTrigger>
+          <TabsTrigger value="parts" className="flex items-center gap-2" onClick={() => fetchParts()}>
+            <Package className="w-4 h-4" />
+            Parts
           </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Upload className="w-4 h-4" />
@@ -338,6 +504,118 @@ export function AdminClient() {
           )}
         </TabsContent>
 
+        {/* Parts Tab */}
+        <TabsContent value="parts" className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <h2 className="text-lg font-semibold">Manage Parts</h2>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search parts..."
+                  value={partsSearch}
+                  onChange={(e) => setPartsSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && fetchParts(1)}
+                  className="pl-9 w-full sm:w-64"
+                />
+              </div>
+              <select
+                value={partsCategory}
+                onChange={(e) => {
+                  setPartsCategory(e.target.value);
+                  fetchParts(1);
+                }}
+                className="border rounded-md px-3 py-2 text-sm bg-background"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <Button onClick={() => fetchParts(1)} variant="outline" size="icon">
+                <Search className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {loadingParts ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {parts.map((part) => (
+                  <Card key={part.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{part.partId}</div>
+                          <div className="text-sm text-muted-foreground truncate">
+                            {part.partName}
+                          </div>
+                          <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                            {part.category && <span>Category: {part.category}</span>}
+                            {part.color && <span>Color: {part.color}</span>}
+                            <span>Qty: {part.totalQty}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditPart(part)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDeletePartDialog({ open: true, part })}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {parts.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No parts found
+                  </div>
+                )}
+              </div>
+
+              {partsPagination && partsPagination.totalPages > 1 && (
+                <div className="flex justify-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={partsPagination.page <= 1}
+                    onClick={() => fetchParts(partsPagination.page - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span className="flex items-center px-3 text-sm">
+                    Page {partsPagination.page} of {partsPagination.totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={partsPagination.page >= partsPagination.totalPages}
+                    onClick={() => fetchParts(partsPagination.page + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </TabsContent>
+
         {/* Import Tab */}
         <TabsContent value="import" className="space-y-4">
           <Card>
@@ -353,6 +631,27 @@ export function AdminClient() {
                 workbook should contain sheets for Parts, Locations, and
                 inventory data.
               </p>
+
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="clearBeforeImport"
+                  checked={clearBeforeImport}
+                  onChange={(e) => setClearBeforeImport(e.target.checked)}
+                  className="mt-1"
+                />
+                <div>
+                  <Label htmlFor="clearBeforeImport" className="cursor-pointer">
+                    Clear existing data before import
+                  </Label>
+                  {clearBeforeImport && (
+                    <p className="text-sm text-destructive mt-1">
+                      <AlertCircle className="w-4 h-4 inline mr-1" />
+                      Warning: This will delete ALL existing parts, locations, inventory, and move history before importing.
+                    </p>
+                  )}
+                </div>
+              </div>
 
               <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                 <input
@@ -399,6 +698,11 @@ export function AdminClient() {
 
                     {importResult.report && (
                       <div className="space-y-2 text-sm">
+                        {importResult.report.cleared && (
+                          <div className="text-muted-foreground">
+                            Existing data was cleared before import.
+                          </div>
+                        )}
                         <div>
                           <strong>Parts:</strong>{" "}
                           {importResult.report.parts.created} created,{" "}
@@ -538,6 +842,174 @@ export function AdminClient() {
             <Button onClick={handleSaveUser} disabled={savingUser}>
               {savingUser && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Part Dialog */}
+      <Dialog
+        open={editPartDialog.open}
+        onOpenChange={(open) => !open && setEditPartDialog({ open: false, part: null })}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Part</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            {/* Basic Info */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-sm text-muted-foreground">Basic Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Part ID</Label>
+                  <Input value={editPartDialog.part?.partId || ""} disabled />
+                </div>
+                <div>
+                  <Label htmlFor="editPartName">Part Name *</Label>
+                  <Input
+                    id="editPartName"
+                    value={editForm.partName}
+                    onChange={(e) => setEditForm({ ...editForm, partName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editColor">Color</Label>
+                  <Input
+                    id="editColor"
+                    value={editForm.color}
+                    onChange={(e) => setEditForm({ ...editForm, color: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editCategory">Category</Label>
+                  <Input
+                    id="editCategory"
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Dimensions */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-sm text-muted-foreground">Dimensions</h3>
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="editSizeW">Width</Label>
+                  <Input
+                    id="editSizeW"
+                    type="number"
+                    step="any"
+                    value={editForm.sizeW}
+                    onChange={(e) => setEditForm({ ...editForm, sizeW: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editSizeL">Length</Label>
+                  <Input
+                    id="editSizeL"
+                    type="number"
+                    step="any"
+                    value={editForm.sizeL}
+                    onChange={(e) => setEditForm({ ...editForm, sizeL: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editThickness">Thickness</Label>
+                  <Input
+                    id="editThickness"
+                    type="number"
+                    step="any"
+                    value={editForm.thickness}
+                    onChange={(e) => setEditForm({ ...editForm, thickness: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editUnit">Unit</Label>
+                  <Input
+                    id="editUnit"
+                    value={editForm.unit}
+                    onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Other */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-sm text-muted-foreground">Other</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="editJobNumber">Job Number</Label>
+                  <Input
+                    id="editJobNumber"
+                    value={editForm.jobNumber}
+                    onChange={(e) => setEditForm({ ...editForm, jobNumber: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editBrand">Brand</Label>
+                  <Input
+                    id="editBrand"
+                    value={editForm.brand}
+                    onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editPallet">Pallet</Label>
+                  <Input
+                    id="editPallet"
+                    value={editForm.pallet}
+                    onChange={(e) => setEditForm({ ...editForm, pallet: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPartDialog({ open: false, part: null })}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePart} disabled={savingPart}>
+              {savingPart && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Part Confirmation Dialog */}
+      <Dialog
+        open={deletePartDialog.open}
+        onOpenChange={(open) => !open && setDeletePartDialog({ open: false, part: null })}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Part</DialogTitle>
+          </DialogHeader>
+
+          <div className="py-4">
+            <p>
+              Are you sure you want to delete part{" "}
+              <strong>{deletePartDialog.part?.partId}</strong>?
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              This will also delete all inventory records and move history for this part.
+              This action cannot be undone.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletePartDialog({ open: false, part: null })}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeletePart} disabled={deletingPart}>
+              {deletingPart && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

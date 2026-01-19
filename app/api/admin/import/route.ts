@@ -138,6 +138,7 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
+    const clearBeforeImport = formData.get("clearBeforeImport") === "true";
 
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
@@ -146,11 +147,20 @@ export async function POST(request: Request) {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
 
-    const report: ImportReport = {
+    const report: ImportReport & { cleared?: boolean } = {
       parts: { created: 0, updated: 0, errors: [] },
       locations: { created: 0, updated: 0, errors: [] },
       inventory: { created: 0, updated: 0, errors: [] },
     };
+
+    // Clear all existing data if requested (order matters due to FK constraints)
+    if (clearBeforeImport) {
+      await db.delete(schema.inventoryMoves);
+      await db.delete(schema.inventory);
+      await db.delete(schema.parts);
+      await db.delete(schema.locations);
+      report.cleared = true;
+    }
 
     // Process Parts sheet
     if (workbook.SheetNames.includes("Parts")) {
