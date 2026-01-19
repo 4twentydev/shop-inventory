@@ -31,6 +31,9 @@ import {
   Mail,
   MailOpen,
   CheckCheck,
+  Warehouse,
+  MinusCircle,
+  PlusCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -138,6 +141,7 @@ export function AdminClient() {
     open: boolean;
     part: PartData | null;
   }>({ open: false, part: null });
+  const [createPartDialog, setCreatePartDialog] = useState(false);
   const [deletePartDialog, setDeletePartDialog] = useState<{
     open: boolean;
     part: PartData | null;
@@ -156,6 +160,44 @@ export function AdminClient() {
     pallet: "",
     unit: "",
   });
+  const [createForm, setCreateForm] = useState({
+    partId: "",
+    partName: "",
+    color: "",
+    category: "",
+    jobNumber: "",
+    sizeW: "",
+    sizeL: "",
+    thickness: "",
+    brand: "",
+    pallet: "",
+    unit: "",
+  });
+
+  // Inventory management state
+  const [inventoryDialog, setInventoryDialog] = useState<{
+    open: boolean;
+    part: PartData | null;
+  }>({ open: false, part: null });
+  const [inventoryData, setInventoryData] = useState<{
+    locationId: string;
+    locationType: string | null;
+    zone: string | null;
+    qty: number;
+  }[]>([]);
+  const [locations, setLocations] = useState<{
+    id: string;
+    locationId: string;
+    type: string | null;
+    zone: string | null;
+  }[]>([]);
+  const [loadingInventory, setLoadingInventory] = useState(false);
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    locationId: "",
+    deltaQty: "",
+    note: "",
+  });
+  const [adjustingInventory, setAdjustingInventory] = useState(false);
 
   // Notifications state
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
@@ -360,6 +402,159 @@ export function AdminClient() {
       });
     } finally {
       setDeletingPart(false);
+    }
+  };
+
+  const openCreatePart = () => {
+    setCreatePartDialog(true);
+    setCreateForm({
+      partId: "",
+      partName: "",
+      color: "",
+      category: "",
+      jobNumber: "",
+      sizeW: "",
+      sizeL: "",
+      thickness: "",
+      brand: "",
+      pallet: "",
+      unit: "",
+    });
+  };
+
+  const handleCreatePart = async () => {
+    if (!createForm.partId.trim()) {
+      toast({ title: "Part ID is required", variant: "destructive" });
+      return;
+    }
+
+    if (!createForm.partName.trim()) {
+      toast({ title: "Part name is required", variant: "destructive" });
+      return;
+    }
+
+    setSavingPart(true);
+    try {
+      const res = await fetch("/api/admin/parts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to create part");
+      }
+
+      toast({ title: "Part created", variant: "success" });
+      setCreatePartDialog(false);
+      fetchParts(partsPagination?.page || 1);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to create part",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPart(false);
+    }
+  };
+
+  const openInventoryManager = async (part: PartData) => {
+    setInventoryDialog({ open: true, part });
+    setLoadingInventory(true);
+    setAdjustmentForm({ locationId: "", deltaQty: "", note: "" });
+
+    try {
+      // Fetch part inventory details
+      const [partRes, locationsRes] = await Promise.all([
+        fetch(`/api/admin/parts/${part.id}`),
+        fetch("/api/admin/locations"),
+      ]);
+
+      const partData = await partRes.json();
+      const locationsData = await locationsRes.json();
+
+      if (partData.inventory) {
+        setInventoryData(partData.inventory);
+      }
+
+      if (locationsData.locations) {
+        setLocations(locationsData.locations);
+      }
+    } catch (error) {
+      console.error("Failed to fetch inventory data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load inventory data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingInventory(false);
+    }
+  };
+
+  const handleInventoryAdjustment = async () => {
+    if (!inventoryDialog.part) return;
+
+    if (!adjustmentForm.locationId) {
+      toast({ title: "Please select a location", variant: "destructive" });
+      return;
+    }
+
+    const deltaQty = parseInt(adjustmentForm.deltaQty);
+    if (isNaN(deltaQty) || deltaQty === 0) {
+      toast({
+        title: "Please enter a valid quantity adjustment (non-zero)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAdjustingInventory(true);
+    try {
+      const res = await fetch("/api/admin/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partId: inventoryDialog.part.id,
+          locationId: adjustmentForm.locationId,
+          deltaQty,
+          reason: "Admin adjustment",
+          note: adjustmentForm.note || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to adjust inventory");
+      }
+
+      const result = await res.json();
+
+      toast({
+        title: "Inventory adjusted",
+        description: `New quantity: ${result.newQty}`,
+        variant: "success",
+      });
+
+      // Refresh inventory data
+      const partRes = await fetch(`/api/admin/parts/${inventoryDialog.part.id}`);
+      const partData = await partRes.json();
+      if (partData.inventory) {
+        setInventoryData(partData.inventory);
+      }
+
+      // Reset form
+      setAdjustmentForm({ locationId: "", deltaQty: "", note: "" });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to adjust inventory",
+        variant: "destructive",
+      });
+    } finally {
+      setAdjustingInventory(false);
     }
   };
 
@@ -639,7 +834,7 @@ export function AdminClient() {
         <TabsContent value="parts" className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <h2 className="text-lg font-semibold">Manage Parts</h2>
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex gap-2 w-full sm:w-auto flex-wrap">
               <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -667,6 +862,10 @@ export function AdminClient() {
               </select>
               <Button onClick={() => fetchParts(1)} variant="outline" size="icon">
                 <Search className="w-4 h-4" />
+              </Button>
+              <Button onClick={openCreatePart}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Part
               </Button>
             </div>
           </div>
@@ -697,7 +896,16 @@ export function AdminClient() {
                           <Button
                             variant="outline"
                             size="sm"
+                            onClick={() => openInventoryManager(part)}
+                            title="Adjust Inventory"
+                          >
+                            <Warehouse className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => openEditPart(part)}
+                            title="Edit Part"
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
@@ -705,6 +913,7 @@ export function AdminClient() {
                             variant="outline"
                             size="sm"
                             onClick={() => setDeletePartDialog({ open: true, part })}
+                            title="Delete Part"
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
@@ -1369,6 +1578,310 @@ export function AdminClient() {
               onClick={() =>
                 setNotificationDialog({ open: false, notification: null })
               }
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Part Dialog */}
+      <Dialog
+        open={createPartDialog}
+        onOpenChange={(open) => !open && setCreatePartDialog(false)}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Part</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            {/* Basic Info */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-sm text-muted-foreground">Basic Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="createPartId">Part ID *</Label>
+                  <Input
+                    id="createPartId"
+                    value={createForm.partId}
+                    onChange={(e) => setCreateForm({ ...createForm, partId: e.target.value })}
+                    placeholder="e.g., PART-001"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="createPartName">Part Name *</Label>
+                  <Input
+                    id="createPartName"
+                    value={createForm.partName}
+                    onChange={(e) => setCreateForm({ ...createForm, partName: e.target.value })}
+                    placeholder="e.g., Widget A"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="createColor">Color</Label>
+                  <Input
+                    id="createColor"
+                    value={createForm.color}
+                    onChange={(e) => setCreateForm({ ...createForm, color: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="createCategory">Category</Label>
+                  <Input
+                    id="createCategory"
+                    value={createForm.category}
+                    onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Dimensions */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-sm text-muted-foreground">Dimensions</h3>
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="createSizeW">Width</Label>
+                  <Input
+                    id="createSizeW"
+                    type="number"
+                    step="any"
+                    value={createForm.sizeW}
+                    onChange={(e) => setCreateForm({ ...createForm, sizeW: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="createSizeL">Length</Label>
+                  <Input
+                    id="createSizeL"
+                    type="number"
+                    step="any"
+                    value={createForm.sizeL}
+                    onChange={(e) => setCreateForm({ ...createForm, sizeL: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="createThickness">Thickness</Label>
+                  <Input
+                    id="createThickness"
+                    type="number"
+                    step="any"
+                    value={createForm.thickness}
+                    onChange={(e) => setCreateForm({ ...createForm, thickness: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="createUnit">Unit</Label>
+                  <Input
+                    id="createUnit"
+                    value={createForm.unit}
+                    onChange={(e) => setCreateForm({ ...createForm, unit: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Other */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-sm text-muted-foreground">Other</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="createJobNumber">Job Number</Label>
+                  <Input
+                    id="createJobNumber"
+                    value={createForm.jobNumber}
+                    onChange={(e) => setCreateForm({ ...createForm, jobNumber: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="createBrand">Brand</Label>
+                  <Input
+                    id="createBrand"
+                    value={createForm.brand}
+                    onChange={(e) => setCreateForm({ ...createForm, brand: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="createPallet">Pallet</Label>
+                  <Input
+                    id="createPallet"
+                    value={createForm.pallet}
+                    onChange={(e) => setCreateForm({ ...createForm, pallet: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatePartDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreatePart} disabled={savingPart}>
+              {savingPart && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inventory Management Dialog */}
+      <Dialog
+        open={inventoryDialog.open}
+        onOpenChange={(open) => !open && setInventoryDialog({ open: false, part: null })}
+      >
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              Manage Inventory: {inventoryDialog.part?.partId}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {inventoryDialog.part?.partName}
+            </p>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4 space-y-6">
+            {loadingInventory ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : (
+              <>
+                {/* Current Inventory */}
+                <div className="space-y-2">
+                  <h3 className="font-medium">Current Inventory by Location</h3>
+                  {inventoryData.length > 0 ? (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="px-4 py-2 text-left font-medium">Location</th>
+                            <th className="px-4 py-2 text-left font-medium">Type</th>
+                            <th className="px-4 py-2 text-left font-medium">Zone</th>
+                            <th className="px-4 py-2 text-right font-medium">Quantity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {inventoryData.map((inv, idx) => (
+                            <tr key={idx} className="border-t">
+                              <td className="px-4 py-2 font-medium">{inv.locationId}</td>
+                              <td className="px-4 py-2">{inv.locationType || "-"}</td>
+                              <td className="px-4 py-2">{inv.zone || "-"}</td>
+                              <td className="px-4 py-2 text-right font-medium">{inv.qty}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t bg-muted/50 font-bold">
+                            <td colSpan={3} className="px-4 py-2 text-right">Total:</td>
+                            <td className="px-4 py-2 text-right">
+                              {inventoryData.reduce((sum, inv) => sum + inv.qty, 0)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center border rounded-lg">
+                      No inventory found for this part
+                    </p>
+                  )}
+                </div>
+
+                {/* Adjustment Form */}
+                <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
+                  <h3 className="font-medium">Adjust Inventory</h3>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <Label htmlFor="adjustLocation">Location *</Label>
+                      <select
+                        id="adjustLocation"
+                        value={adjustmentForm.locationId}
+                        onChange={(e) =>
+                          setAdjustmentForm({ ...adjustmentForm, locationId: e.target.value })
+                        }
+                        className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                      >
+                        <option value="">Select location...</option>
+                        {locations.map((loc) => (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.locationId} {loc.type && `- ${loc.type}`} {loc.zone && `(${loc.zone})`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="adjustQty">Quantity Adjustment *</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const current = parseInt(adjustmentForm.deltaQty) || 0;
+                            setAdjustmentForm({ ...adjustmentForm, deltaQty: String(current - 1) });
+                          }}
+                        >
+                          <MinusCircle className="w-4 h-4" />
+                        </Button>
+                        <Input
+                          id="adjustQty"
+                          type="number"
+                          value={adjustmentForm.deltaQty}
+                          onChange={(e) =>
+                            setAdjustmentForm({ ...adjustmentForm, deltaQty: e.target.value })
+                          }
+                          placeholder="e.g., 10 or -5"
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const current = parseInt(adjustmentForm.deltaQty) || 0;
+                            setAdjustmentForm({ ...adjustmentForm, deltaQty: String(current + 1) });
+                          }}
+                        >
+                          <PlusCircle className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Use positive numbers to add, negative to subtract
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="adjustNote">Note (optional)</Label>
+                      <Input
+                        id="adjustNote"
+                        value={adjustmentForm.note}
+                        onChange={(e) =>
+                          setAdjustmentForm({ ...adjustmentForm, note: e.target.value })
+                        }
+                        placeholder="Reason for adjustment"
+                      />
+                    </div>
+
+                    <Button
+                      onClick={handleInventoryAdjustment}
+                      disabled={adjustingInventory}
+                      className="w-full"
+                    >
+                      {adjustingInventory && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Apply Adjustment
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setInventoryDialog({ open: false, part: null })}
             >
               Close
             </Button>

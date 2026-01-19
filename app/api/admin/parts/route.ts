@@ -3,6 +3,82 @@ import { db, schema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { ilike, or, eq, sql, count } from "drizzle-orm";
 
+export async function POST(request: Request) {
+  try {
+    await requireAdmin();
+
+    const body = await request.json();
+    const {
+      partId,
+      partName,
+      color,
+      category,
+      jobNumber,
+      sizeW,
+      sizeL,
+      thickness,
+      brand,
+      pallet,
+      unit,
+    } = body;
+
+    // Validate required fields
+    if (!partId || !partId.trim()) {
+      return NextResponse.json({ error: "Part ID is required" }, { status: 400 });
+    }
+
+    if (!partName || !partName.trim()) {
+      return NextResponse.json({ error: "Part name is required" }, { status: 400 });
+    }
+
+    // Check if part ID already exists
+    const existing = await db
+      .select()
+      .from(schema.parts)
+      .where(eq(schema.parts.partId, partId.trim()))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return NextResponse.json(
+        { error: "Part ID already exists" },
+        { status: 400 }
+      );
+    }
+
+    // Create new part
+    const newPart = await db
+      .insert(schema.parts)
+      .values({
+        partId: partId.trim(),
+        partName: partName.trim(),
+        color: color?.trim() || null,
+        category: category?.trim() || null,
+        jobNumber: jobNumber?.trim() || null,
+        sizeW: sizeW ? parseFloat(sizeW) : null,
+        sizeL: sizeL ? parseFloat(sizeL) : null,
+        thickness: thickness ? parseFloat(thickness) : null,
+        brand: brand?.trim() || null,
+        pallet: pallet?.trim() || null,
+        unit: unit?.trim() || null,
+      })
+      .returning();
+
+    return NextResponse.json({ part: newPart[0] }, { status: 201 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Admin access required") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.error("Part creation error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to create part" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function GET(request: Request) {
   try {
     await requireAdmin();
