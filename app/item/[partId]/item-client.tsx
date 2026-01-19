@@ -171,9 +171,9 @@ export function ItemClient({ partId }: { partId: string }) {
       }
 
       toast({
-        title: moveDialog.type === "take" ? "Taken" : "Returned",
+        title: moveDialog.type === "take" ? "Pulled" : "Returned",
         description: `${finalQty} x ${data?.part.partName} ${
-          moveDialog.type === "take" ? "taken from" : "returned to"
+          moveDialog.type === "take" ? "pulled from" : "returned to"
         } ${moveDialog.locationCode}`,
         variant: "success",
       });
@@ -294,22 +294,20 @@ export function ItemClient({ partId }: { partId: string }) {
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      variant="default"
-                      size="lg"
-                      className="h-12 px-6 bg-[#E46F47] text-white hover:bg-[#E46F47]/90"
+                      variant="outline"
+                      className="border-[#E46F47] text-[#E46F47] hover:bg-[#E46F47]/10"
                       onClick={() => handleTake(loc)}
                       disabled={loc.qty === 0}
                     >
-                      <Minus className="w-5 h-5 mr-1" />
-                      TAKE
+                      <Minus className="w-4 h-4 mr-1" />
+                      PULL
                     </Button>
                     <Button
-                      variant="default"
-                      size="lg"
-                      className="h-12 px-6 bg-[#033F63] text-white hover:bg-[#033F63]/90"
+                      variant="outline"
+                      className="border-[#033F63] text-[#033F63] hover:bg-[#033F63]/10"
                       onClick={() => handleReturn(loc)}
                     >
-                      <Plus className="w-5 h-5 mr-1" />
+                      <Plus className="w-4 h-4 mr-1" />
                       RETURN
                     </Button>
                   </div>
@@ -383,7 +381,7 @@ export function ItemClient({ partId }: { partId: string }) {
               {moveDialog?.type === "take" ? (
                 <>
                   <Minus className="w-5 h-5 text-destructive" />
-                  Take from {moveDialog?.locationCode}
+                  Pull from {moveDialog?.locationCode}
                 </>
               ) : (
                 <>
@@ -477,7 +475,7 @@ export function ItemClient({ partId }: { partId: string }) {
               ) : (
                 <Plus className="w-4 h-4 mr-2" />
               )}
-              {moveDialog?.type === "take" ? "Take" : "Return"}{" "}
+              {moveDialog?.type === "take" ? "Pull" : "Return"}{" "}
               {moveDialog?.type === "take" && wholeSkid
                 ? moveDialog.currentQty
                 : qtyInput || ""}
