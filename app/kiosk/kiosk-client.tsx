@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +28,16 @@ export function KioskClient() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const router = useRouter();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus search input on mount for quick searching
+  useEffect(() => {
+    // Small delay helps with mobile keyboard activation
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const partsByCategory = useMemo(() => {
     const groups = new Map<string, Part[]>();
@@ -94,7 +104,10 @@ export function KioskClient() {
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
         <Input
-          type="text"
+          ref={searchInputRef}
+          type="search"
+          inputMode="search"
+          enterKeyHint="search"
           placeholder="Search by name, ID, color, job, size, brand..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
