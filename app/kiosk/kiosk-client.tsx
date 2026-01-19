@@ -27,6 +27,7 @@ export function KioskClient() {
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
   const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,6 +39,26 @@ export function KioskClient() {
     }, 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Fetch current user
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          setUserName(data.user.name);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
   const partsByCategory = useMemo(() => {
     const groups = new Map<string, Part[]>();
@@ -123,7 +144,10 @@ export function KioskClient() {
       {!searched && !loading && (
         <div className="text-center py-12 text-muted-foreground">
           <Package className="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <p className="text-lg">Start typing to search inventory</p>
+          <p className="text-lg">
+            {getGreeting()}
+            {userName ? ` ${userName}` : ""}! Please search for the material you would like to move.
+          </p>
         </div>
       )}
 
