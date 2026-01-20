@@ -2,136 +2,136 @@
 
 /* Theme color mappings for Tailwind */
 @theme {
-  /* Map CSS variables to Tailwind color tokens */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--surface);
-  --color-card-foreground: var(--foreground);
-  --color-popover: var(--surface);
-  --color-popover-foreground: var(--foreground);
-  --color-primary: var(--accent-primary);
-  --color-primary-foreground: #ffffff;
-  --color-secondary: var(--surface-muted);
-  --color-secondary-foreground: var(--foreground);
-  --color-muted: var(--surface-muted);
-  --color-muted-foreground: var(--muted);
-  --color-accent: var(--surface-muted);
-  --color-accent-foreground: var(--foreground);
-  --color-destructive: var(--error);
-  --color-destructive-foreground: #ffffff;
-  --color-border: var(--border);
-  --color-input: var(--border);
-  --color-ring: var(--accent-secondary);
-  --color-success: var(--success);
-  --color-success-foreground: #ffffff;
-  --color-warning: var(--warning);
-  --color-warning-foreground: #ffffff;
-  --radius: 0.5rem;
+   /* Map CSS variables to Tailwind color tokens */
+   --color-background: var(--background);
+   --color-foreground: var(--foreground);
+   --color-card: var(--surface);
+   --color-card-foreground: var(--foreground);
+   --color-popover: var(--surface);
+   --color-popover-foreground: var(--foreground);
+   --color-primary: var(--accent-primary);
+   --color-primary-foreground: #ffffff;
+   --color-secondary: var(--surface-muted);
+   --color-secondary-foreground: var(--foreground);
+   --color-muted: var(--surface-muted);
+   --color-muted-foreground: var(--muted);
+   --color-accent: var(--surface-muted);
+   --color-accent-foreground: var(--foreground);
+   --color-destructive: var(--error);
+   --color-destructive-foreground: #ffffff;
+   --color-border: var(--border);
+   --color-input: var(--border);
+   --color-ring: var(--accent-secondary);
+   --color-success: var(--success);
+   --color-success-foreground: #ffffff;
+   --color-warning: var(--warning);
+   --color-warning-foreground: #ffffff;
+   --radius: 0.5rem;
 
-  /* Custom color tokens */
-  --color-strong: var(--foreground);
-  --color-subtle: var(--muted-strong);
-  --color-accent-primary: var(--accent-primary);
-  --color-accent-secondary: var(--accent-secondary);
-  --color-surface: var(--surface);
-  --color-surface-muted: var(--surface-muted);
+   /* Custom color tokens */
+   --color-strong: var(--foreground);
+   --color-subtle: var(--muted-strong);
+   --color-accent-primary: var(--accent-primary);
+   --color-accent-secondary: var(--accent-secondary);
+   --color-surface: var(--surface);
+   --color-surface-muted: var(--surface-muted);
 }
 
 /* Light theme (default) */
 :root {
-  --background: #ebebeb;
-  --foreground: #252323;
-  --surface: #f4f4f4;
-  --surface-muted: #e4e4e4;
-  --border: #c0c0c0;
-  --border-strong: #a8a8a8;
-  --muted: rgba(37, 35, 35, 0.6);
-  --muted-strong: rgba(37, 35, 35, 0.8);
-  --accent-primary: #ff6700;
-  --accent-secondary: #004e98;
-  --success: #10b981;
-  --error: #f43f5e;
-  --warning: #fbbf24;
-  color-scheme: light;
+   --background: #ebebeb;
+   --foreground: #252323;
+   --surface: #f4f4f4;
+   --surface-muted: #e4e4e4;
+   --border: #c0c0c0;
+   --border-strong: #a8a8a8;
+   --muted: rgba(37, 35, 35, 0.6);
+   --muted-strong: rgba(37, 35, 35, 0.8);
+   --accent-primary: #ff6700;
+   --accent-secondary: #004e98;
+   --success: #10b981;
+   --error: #f43f5e;
+   --warning: #fbbf24;
+   color-scheme: light;
 }
 
 /* Dark theme */
 [data-theme="dark"] {
-  --background: #252323;
-  --foreground: #ebebeb;
-  --surface: #2f2c2c;
-  --surface-muted: #1f1e1e;
-  --border: #3a3838;
-  --border-strong: #4a4747;
-  --muted: rgba(235, 235, 235, 0.65);
-  --muted-strong: rgba(235, 235, 235, 0.85);
-  --accent-primary: #ff6700;
-  --accent-secondary: #004e98;
-  --success: #10b981;
-  --error: #f43f5e;
-  --warning: #fbbf24;
-  color-scheme: dark;
+   --background: #252323;
+   --foreground: #ebebeb;
+   --surface: #2f2c2c;
+   --surface-muted: #1f1e1e;
+   --border: #3a3838;
+   --border-strong: #4a4747;
+   --muted: rgba(235, 235, 235, 0.65);
+   --muted-strong: rgba(235, 235, 235, 0.85);
+   --accent-primary: #ff6700;
+   --accent-secondary: #004e98;
+   --success: #10b981;
+   --error: #f43f5e;
+   --warning: #fbbf24;
+   color-scheme: dark;
 }
 
 /* System preference detection */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --background: #252323;
-    --foreground: #ebebeb;
-    --surface: #2f2c2c;
-    --surface-muted: #1f1e1e;
-    --border: #3a3838;
-    --border-strong: #4a4747;
-    --muted: rgba(235, 235, 235, 0.65);
-    --muted-strong: rgba(235, 235, 235, 0.85);
-    color-scheme: dark;
-  }
+   :root:not([data-theme="light"]) {
+      --background: #252323;
+      --foreground: #ebebeb;
+      --surface: #2f2c2c;
+      --surface-muted: #1f1e1e;
+      --border: #3a3838;
+      --border-strong: #4a4747;
+      --muted: rgba(235, 235, 235, 0.65);
+      --muted-strong: rgba(235, 235, 235, 0.85);
+      color-scheme: dark;
+   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-family: var(--font-geist-sans), system-ui, sans-serif;
-  }
+   * {
+      @apply border-border;
+   }
+   body {
+      @apply bg-background text-foreground;
+      font-family: var(--font-geist-sans), system-ui, sans-serif;
+   }
 }
 
 /* Utility classes from style guide */
 .text-strong {
-  color: var(--foreground);
+   color: var(--foreground);
 }
 
 .text-muted {
-  color: var(--muted);
+   color: var(--muted);
 }
 
 .text-subtle {
-  color: var(--muted-strong);
+   color: var(--muted-strong);
 }
 
 .bg-base {
-  background-color: var(--background);
+   background-color: var(--background);
 }
 
 .surface {
-  background-color: var(--surface);
+   background-color: var(--surface);
 }
 
 .border-subtle {
-  border-color: var(--border);
+   border-color: var(--border);
 }
 
 .border-strong {
-  border-color: var(--border-strong);
+   border-color: var(--border-strong);
 }
 
 .btn-primary {
-  background-color: var(--accent-primary);
-  color: white;
+   background-color: var(--accent-primary);
+   color: white;
 }
 
 .btn-primary:hover {
-  filter: brightness(0.95);
+   filter: brightness(0.95);
 }
