@@ -644,7 +644,13 @@ export function AdminClient() {
     }
 
     setReceivingQueue([...receivingQueue, item]);
-    resetReceivingForm();
+    // Only clear part-specific fields, keep location and attributes for faster data entry
+    setReceivingForm((prev) => ({
+      ...prev,
+      partId: "",
+      partName: "",
+      quantity: "",
+    }));
     toast({ title: "Item added to queue", variant: "success" });
   };
 
