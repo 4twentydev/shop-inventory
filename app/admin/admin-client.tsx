@@ -48,6 +48,8 @@ import {
   X,
   PackagePlus,
   Menu,
+  Copy,
+  ClipboardPaste,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -293,6 +295,20 @@ export function AdminClient() {
     zone: string | null;
   }[]>([]);
   const [loadingReceivingLocations, setLoadingReceivingLocations] = useState(false);
+
+  // Part ID autocomplete state
+  const [partSuggestions, setPartSuggestions] = useState<PartData[]>([]);
+  const [loadingPartSuggestions, setLoadingPartSuggestions] = useState(false);
+  const [showPartSuggestions, setShowPartSuggestions] = useState(false);
+  const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+
+  // Bulk paste state
+  const [bulkPasteDialog, setBulkPasteDialog] = useState(false);
+  const [bulkPasteText, setBulkPasteText] = useState("");
+  const [bulkPastePreview, setBulkPastePreview] = useState<{
+    valid: ReceivingItem[];
+    errors: string[];
+  } | null>(null);
 
   // Navigation state
   const [activeSection, setActiveSection] = useState("users");
@@ -701,6 +717,134 @@ export function AdminClient() {
     } finally {
       setSubmittingReceiving(false);
     }
+  };
+
+  // Part ID autocomplete search function
+  const searchParts = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setPartSuggestions([]);
+      return;
+    }
+    setLoadingPartSuggestions(true);
+    try {
+      const res = await fetch(`/api/parts?query=${encodeURIComponent(query)}&limit=10`);
+      const data = await res.json();
+      setPartSuggestions(data.parts || []);
+    } catch (error) {
+      console.error("Failed to search parts:", error);
+      setPartSuggestions([]);
+    } finally {
+      setLoadingPartSuggestions(false);
+    }
+  }, []);
+
+  // Debounced search for part ID autocomplete
+  const debouncedSearchParts = useCallback((query: string) => {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    const timer = setTimeout(() => {
+      searchParts(query);
+    }, 300);
+    setSearchDebounceTimer(timer);
+  }, [searchDebounceTimer, searchParts]);
+
+  // Select a part suggestion and fill the form
+  const selectPartSuggestion = (part: PartData) => {
+    // Update category if part has one
+    if (part.category) {
+      setReceivingCategory(part.category);
+    }
+    // Fill form with part data
+    setReceivingForm((prev) => ({
+      ...prev,
+      partId: part.partId,
+      partName: part.partName,
+      color: part.color || "",
+      jobNumber: part.jobNumber || "",
+      sizeW: part.sizeW?.toString() || "",
+      sizeL: part.sizeL?.toString() || "",
+      thickness: part.thickness?.toString() || "",
+      brand: part.brand || "",
+      unit: part.unit || "",
+      pallet: part.pallet || "",
+    }));
+    setShowPartSuggestions(false);
+    setPartSuggestions([]);
+  };
+
+  // Duplicate last entry function
+  const duplicateLastEntry = () => {
+    if (receivingQueue.length === 0) return;
+    const last = receivingQueue[receivingQueue.length - 1];
+
+    setReceivingCategory(last.category);
+    setReceivingForm({
+      partId: last.partId,
+      partName: last.partName,
+      locationId: last.locationId,
+      quantity: last.quantity.toString(),
+      color: last.color || "",
+      jobNumber: last.jobNumber || "",
+      sizeW: last.sizeW?.toString() || "",
+      sizeL: last.sizeL?.toString() || "",
+      thickness: last.thickness?.toString() || "",
+      brand: last.brand || "",
+      unit: last.unit || "",
+      pallet: last.pallet || "",
+    });
+  };
+
+  // Parse bulk paste data from spreadsheet
+  const parseBulkPaste = (text: string) => {
+    const lines = text.trim().split('\n');
+    const valid: ReceivingItem[] = [];
+    const errors: string[] = [];
+
+    lines.forEach((line, idx) => {
+      const cols = line.split('\t');
+      if (cols.length < 4) {
+        errors.push(`Row ${idx + 1}: Need at least 4 columns (Part ID, Name, Location, Qty)`);
+        return;
+      }
+
+      const qty = parseInt(cols[3]);
+      if (isNaN(qty) || qty <= 0) {
+        errors.push(`Row ${idx + 1}: Invalid quantity "${cols[3]}"`);
+        return;
+      }
+
+      valid.push({
+        partId: cols[0].trim(),
+        partName: cols[1].trim(),
+        category: receivingCategory || "Misc",
+        locationId: cols[2].trim(),
+        quantity: qty,
+        color: cols[4]?.trim() || undefined,
+        jobNumber: cols[5]?.trim() || undefined,
+        sizeW: cols[6] ? parseFloat(cols[6]) : undefined,
+        sizeL: cols[7] ? parseFloat(cols[7]) : undefined,
+        thickness: cols[8] ? parseFloat(cols[8]) : undefined,
+        brand: cols[9]?.trim() || undefined,
+        unit: cols[10]?.trim() || undefined,
+        pallet: cols[11]?.trim() || undefined,
+      });
+    });
+
+    setBulkPastePreview({ valid, errors });
+  };
+
+  // Add bulk paste items to queue
+  const handleBulkAdd = () => {
+    if (!bulkPastePreview || bulkPastePreview.valid.length === 0) return;
+    setReceivingQueue([...receivingQueue, ...bulkPastePreview.valid]);
+    setBulkPasteDialog(false);
+    setBulkPasteText("");
+    setBulkPastePreview(null);
+    toast({
+      title: `Added ${bulkPastePreview.valid.length} items to queue`,
+      variant: "success"
+    });
   };
 
   const openEditPart = (part: PartData) => {
@@ -1758,15 +1902,43 @@ export function AdminClient() {
                 <>
                   {/* Common Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
+                    <div className="relative">
                       <Label htmlFor="receivingPartId">Part ID *</Label>
                       <Input
                         id="receivingPartId"
                         value={receivingForm.partId}
-                        onChange={(e) => setReceivingForm({ ...receivingForm, partId: e.target.value })}
-                        placeholder="Enter Part ID"
+                        onChange={(e) => {
+                          setReceivingForm({ ...receivingForm, partId: e.target.value });
+                          setShowPartSuggestions(true);
+                          debouncedSearchParts(e.target.value);
+                        }}
+                        onFocus={() => receivingForm.partId.length >= 2 && setShowPartSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowPartSuggestions(false), 200)}
+                        placeholder="Type to search or enter new"
                         className="mt-1"
+                        autoComplete="off"
                       />
+                      {showPartSuggestions && partSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-background border rounded-xl shadow-lg max-h-60 overflow-auto">
+                          {loadingPartSuggestions && (
+                            <div className="px-4 py-2 text-sm text-muted-foreground">
+                              <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                              Searching...
+                            </div>
+                          )}
+                          {partSuggestions.map((part) => (
+                            <button
+                              key={part.id}
+                              type="button"
+                              className="w-full px-4 py-2 text-left hover:bg-muted border-b last:border-b-0"
+                              onMouseDown={() => selectPartSuggestion(part)}
+                            >
+                              <div className="font-medium font-mono text-sm">{part.partId}</div>
+                              <div className="text-sm text-muted-foreground truncate">{part.partName}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="receivingPartName">Part Name *</Label>
@@ -1959,8 +2131,18 @@ export function AdminClient() {
                     </div>
                   )}
 
-                  {/* Add to Queue Button */}
-                  <div className="flex justify-end">
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setBulkPasteDialog(true)}>
+                      <ClipboardPaste className="w-4 h-4 mr-2" />
+                      Bulk Paste
+                    </Button>
+                    {receivingQueue.length > 0 && (
+                      <Button variant="outline" onClick={duplicateLastEntry}>
+                        <Copy className="w-4 h-4 mr-2" />
+                        Duplicate Last
+                      </Button>
+                    )}
                     <Button onClick={handleAddToQueue}>
                       <Plus className="w-4 h-4 mr-2" />
                       Add to Queue
@@ -2881,6 +3063,62 @@ export function AdminClient() {
             <Button onClick={handleTransfer} disabled={transferring}>
               {transferring && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Transfer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Paste Dialog */}
+      <Dialog open={bulkPasteDialog} onOpenChange={setBulkPasteDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Bulk Paste from Spreadsheet</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Paste tab-separated data from Excel. Columns: Part ID, Part Name, Location, Quantity,
+              [Color, Job#, Width, Length, Thickness, Brand, Unit, Pallet]
+            </p>
+            <textarea
+              className="w-full h-40 p-3 border rounded-xl font-mono text-sm bg-background resize-none"
+              placeholder="Paste data here..."
+              value={bulkPasteText}
+              onChange={(e) => {
+                setBulkPasteText(e.target.value);
+                if (e.target.value.trim()) {
+                  parseBulkPaste(e.target.value);
+                } else {
+                  setBulkPastePreview(null);
+                }
+              }}
+            />
+            {bulkPastePreview && (
+              <div className="space-y-2">
+                {bulkPastePreview.errors.length > 0 && (
+                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                    {bulkPastePreview.errors.map((err, i) => <div key={i}>{err}</div>)}
+                  </div>
+                )}
+                <div className="text-sm font-medium">
+                  {bulkPastePreview.valid.length} valid item{bulkPastePreview.valid.length !== 1 ? "s" : ""} ready to add
+                  {receivingCategory && <span className="text-muted-foreground"> (category: {receivingCategory})</span>}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setBulkPasteDialog(false);
+              setBulkPasteText("");
+              setBulkPastePreview(null);
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkAdd}
+              disabled={!bulkPastePreview || bulkPastePreview.valid.length === 0}
+            >
+              Add {bulkPastePreview?.valid.length || 0} Items
             </Button>
           </DialogFooter>
         </DialogContent>
