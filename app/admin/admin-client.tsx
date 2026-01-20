@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +47,7 @@ import {
   Filter,
   X,
   PackagePlus,
+  Menu,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -287,6 +294,21 @@ export function AdminClient() {
   }[]>([]);
   const [loadingReceivingLocations, setLoadingReceivingLocations] = useState(false);
 
+  // Navigation state
+  const [activeSection, setActiveSection] = useState("users");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Navigation items
+  const navItems = [
+    { id: "users", label: "Users", icon: Users },
+    { id: "parts", label: "Parts", icon: Package },
+    { id: "routing", label: "Routing", icon: Warehouse },
+    { id: "receiving", label: "Receiving", icon: PackagePlus },
+    { id: "import", label: "Import", icon: Upload },
+    { id: "notifications", label: "Notifications", icon: Bell, badge: unreadCount },
+    { id: "settings", label: "Settings", icon: Settings },
+  ];
+
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
@@ -307,6 +329,14 @@ export function AdminClient() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  // Fetch data when section changes
+  useEffect(() => {
+    if (activeSection === "parts") fetchParts();
+    if (activeSection === "routing") fetchMoves();
+    if (activeSection === "receiving") fetchReceivingLocations();
+    if (activeSection === "notifications") fetchNotifications();
+  }, [activeSection]);
 
   const fetchParts = useCallback(async (page = 1) => {
     setLoadingParts(true);
@@ -1066,49 +1096,89 @@ export function AdminClient() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Admin Panel</h1>
+      {/* Mobile Header */}
+      <div className="flex items-center justify-between lg:hidden">
+        <h1 className="text-2xl font-bold">Admin Panel</h1>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <Menu className="w-5 h-5" />
+        </Button>
+      </div>
 
-      <Tabs defaultValue="users">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="parts" className="flex items-center gap-2" onClick={() => fetchParts()}>
-            <Package className="w-4 h-4" />
-            Parts
-          </TabsTrigger>
-          <TabsTrigger value="routing" className="flex items-center gap-2" onClick={() => fetchMoves()}>
-            <Warehouse className="w-4 h-4" />
-            Routing
-          </TabsTrigger>
-          <TabsTrigger value="receiving" className="flex items-center gap-2" onClick={() => fetchReceivingLocations()}>
-            <PackagePlus className="w-4 h-4" />
-            Receiving
-          </TabsTrigger>
-          <TabsTrigger value="import" className="flex items-center gap-2">
-            <Upload className="w-4 h-4" />
-            Import
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2" onClick={() => fetchNotifications()}>
-            <Bell className="w-4 h-4" />
-            <span className="flex items-center gap-1">
-              Notifications
-              {unreadCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
-                  {unreadCount}
-                </span>
-              )}
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2">
-            <Settings className="w-4 h-4" />
-            Settings
-          </TabsTrigger>
-        </TabsList>
+      {/* Desktop Header - hidden on mobile since we show it above */}
+      <h1 className="text-2xl font-bold hidden lg:block">Admin Panel</h1>
 
-        {/* Users Tab */}
-        <TabsContent value="users" className="space-y-4">
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Desktop Sidebar */}
+        <aside className="hidden lg:block w-56 shrink-0">
+          <nav className="sticky top-4 space-y-1">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium",
+                  "transition-colors duration-200",
+                  activeSection === item.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className="ml-auto px-1.5 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Mobile Drawer */}
+        <Drawer open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>Admin Menu</DrawerTitle>
+            </DrawerHeader>
+            <nav className="p-4 space-y-2">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveSection(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium",
+                    "transition-colors duration-200",
+                    activeSection === item.id
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.label}
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className="ml-auto px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </DrawerContent>
+        </Drawer>
+
+        {/* Main Content */}
+        <main className="flex-1 min-w-0">
+          {/* Users Section */}
+          {activeSection === "users" && (
+            <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Manage Users</h2>
             <Button onClick={openCreateUser}>
@@ -1177,11 +1247,13 @@ export function AdminClient() {
               ))}
             </div>
           )}
-        </TabsContent>
+            </div>
+          )}
 
-        {/* Parts Tab */}
-        <TabsContent value="parts" className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          {/* Parts Section */}
+          {activeSection === "parts" && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <h2 className="text-lg font-semibold">Manage Parts</h2>
             <div className="flex gap-2 w-full sm:w-auto flex-wrap">
               <div className="relative flex-1 sm:flex-none">
@@ -1303,10 +1375,12 @@ export function AdminClient() {
               )}
             </>
           )}
-        </TabsContent>
+            </div>
+          )}
 
-        {/* Import Tab */}
-        <TabsContent value="import" className="space-y-4">
+          {/* Import Section */}
+          {activeSection === "import" && (
+            <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1436,10 +1510,12 @@ export function AdminClient() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+          )}
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-4">
+          {/* Notifications Section */}
+          {activeSection === "notifications" && (
+            <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Notifications</h2>
             {unreadCount > 0 && (
@@ -1527,10 +1603,12 @@ export function AdminClient() {
               ))}
             </div>
           )}
-        </TabsContent>
+            </div>
+          )}
 
-        {/* Material Routing Tab */}
-        <TabsContent value="routing" className="space-y-4">
+          {/* Routing Section */}
+          {activeSection === "routing" && (
+            <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Material Routing & Movement</h2>
             <Button onClick={() => setTransferDialog(true)}>
@@ -1637,10 +1715,12 @@ export function AdminClient() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+          )}
 
-        {/* Receiving Tab */}
-        <TabsContent value="receiving" className="space-y-4">
+          {/* Receiving Section */}
+          {activeSection === "receiving" && (
+            <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Receiving Inventory</CardTitle>
@@ -1953,10 +2033,12 @@ export function AdminClient() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+          )}
 
-        {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-4">
+          {/* Settings Section */}
+          {activeSection === "settings" && (
+            <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Application Settings</CardTitle>
@@ -1978,8 +2060,10 @@ export function AdminClient() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* User Dialog */}
       <Dialog
