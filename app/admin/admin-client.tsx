@@ -40,6 +40,7 @@ import {
   History,
   Filter,
   X,
+  PackagePlus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -125,6 +126,22 @@ interface NotificationDetail {
   emailSentAt: string | null;
   createdAt: string;
   data: NotificationMoveData[] | ProblemReportData;
+}
+
+interface ReceivingItem {
+  partId: string;
+  partName: string;
+  category: string;
+  locationId: string;
+  quantity: number;
+  color?: string;
+  jobNumber?: string;
+  sizeW?: number;
+  sizeL?: number;
+  thickness?: number;
+  brand?: string;
+  unit?: string;
+  pallet?: string;
 }
 
 export function AdminClient() {
@@ -243,6 +260,32 @@ export function AdminClient() {
     note: "",
   });
   const [transferring, setTransferring] = useState(false);
+
+  // Receiving state
+  const [receivingCategory, setReceivingCategory] = useState("");
+  const [receivingForm, setReceivingForm] = useState({
+    partId: "",
+    partName: "",
+    locationId: "",
+    quantity: "",
+    color: "",
+    jobNumber: "",
+    sizeW: "",
+    sizeL: "",
+    thickness: "",
+    brand: "",
+    unit: "",
+    pallet: "",
+  });
+  const [receivingQueue, setReceivingQueue] = useState<ReceivingItem[]>([]);
+  const [submittingReceiving, setSubmittingReceiving] = useState(false);
+  const [receivingLocations, setReceivingLocations] = useState<{
+    id: string;
+    locationId: string;
+    type: string | null;
+    zone: string | null;
+  }[]>([]);
+  const [loadingReceivingLocations, setLoadingReceivingLocations] = useState(false);
 
   const { toast } = useToast();
 
@@ -484,6 +527,143 @@ export function AdminClient() {
         description: error instanceof Error ? error.message : "Failed to undo move",
         variant: "destructive",
       });
+    }
+  };
+
+  // Receiving functions
+  const fetchReceivingLocations = async () => {
+    if (receivingLocations.length > 0) return;
+    setLoadingReceivingLocations(true);
+    try {
+      const res = await fetch("/api/admin/locations");
+      const data = await res.json();
+      if (data.locations) {
+        setReceivingLocations(data.locations);
+      }
+    } catch (error) {
+      console.error("Failed to fetch locations:", error);
+    } finally {
+      setLoadingReceivingLocations(false);
+    }
+  };
+
+  const resetReceivingForm = () => {
+    setReceivingForm({
+      partId: "",
+      partName: "",
+      locationId: "",
+      quantity: "",
+      color: "",
+      jobNumber: "",
+      sizeW: "",
+      sizeL: "",
+      thickness: "",
+      brand: "",
+      unit: "",
+      pallet: "",
+    });
+  };
+
+  const handleAddToQueue = () => {
+    if (!receivingCategory) {
+      toast({ title: "Please select a category", variant: "destructive" });
+      return;
+    }
+    if (!receivingForm.partId.trim()) {
+      toast({ title: "Part ID is required", variant: "destructive" });
+      return;
+    }
+    if (!receivingForm.partName.trim()) {
+      toast({ title: "Part Name is required", variant: "destructive" });
+      return;
+    }
+    if (!receivingForm.locationId) {
+      toast({ title: "Location is required", variant: "destructive" });
+      return;
+    }
+    const qty = parseInt(receivingForm.quantity);
+    if (isNaN(qty) || qty <= 0) {
+      toast({ title: "Quantity must be a positive number", variant: "destructive" });
+      return;
+    }
+
+    const item: ReceivingItem = {
+      partId: receivingForm.partId.trim(),
+      partName: receivingForm.partName.trim(),
+      category: receivingCategory,
+      locationId: receivingForm.locationId,
+      quantity: qty,
+    };
+
+    // Add category-specific fields
+    if (receivingCategory === "Extrusion") {
+      if (receivingForm.color) item.color = receivingForm.color.trim();
+      if (receivingForm.sizeW) item.sizeW = parseFloat(receivingForm.sizeW);
+      if (receivingForm.sizeL) item.sizeL = parseFloat(receivingForm.sizeL);
+      if (receivingForm.thickness) item.thickness = parseFloat(receivingForm.thickness);
+    } else if (["ACM", "SPL", "HPL"].includes(receivingCategory)) {
+      if (receivingForm.jobNumber) item.jobNumber = receivingForm.jobNumber.trim();
+      if (receivingForm.sizeW) item.sizeW = parseFloat(receivingForm.sizeW);
+      if (receivingForm.sizeL) item.sizeL = parseFloat(receivingForm.sizeL);
+      if (receivingForm.thickness) item.thickness = parseFloat(receivingForm.thickness);
+      if (receivingForm.brand) item.brand = receivingForm.brand.trim();
+    } else if (["Rivet", "Misc"].includes(receivingCategory)) {
+      if (receivingForm.brand) item.brand = receivingForm.brand.trim();
+      if (receivingForm.unit) item.unit = receivingForm.unit.trim();
+      if (receivingForm.pallet) item.pallet = receivingForm.pallet.trim();
+    }
+
+    setReceivingQueue([...receivingQueue, item]);
+    resetReceivingForm();
+    toast({ title: "Item added to queue", variant: "success" });
+  };
+
+  const handleRemoveFromQueue = (index: number) => {
+    setReceivingQueue(receivingQueue.filter((_, i) => i !== index));
+  };
+
+  const handleClearQueue = () => {
+    if (receivingQueue.length === 0) return;
+    if (confirm("Clear all items from the queue?")) {
+      setReceivingQueue([]);
+    }
+  };
+
+  const handleSubmitReceiving = async () => {
+    if (receivingQueue.length === 0) {
+      toast({ title: "Queue is empty", variant: "destructive" });
+      return;
+    }
+
+    setSubmittingReceiving(true);
+    try {
+      const res = await fetch("/api/admin/receiving", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: receivingQueue }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Receiving failed");
+      }
+
+      toast({
+        title: "Receiving complete",
+        description: `Created ${data.created} parts, updated ${data.updated} inventory records`,
+        variant: "success",
+      });
+
+      setReceivingQueue([]);
+      resetReceivingForm();
+    } catch (error) {
+      toast({
+        title: "Receiving failed",
+        description: error instanceof Error ? error.message : "Failed to process receiving",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingReceiving(false);
     }
   };
 
@@ -889,7 +1069,7 @@ export function AdminClient() {
       <h1 className="text-2xl font-bold">Admin Panel</h1>
 
       <Tabs defaultValue="users">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
             Users
@@ -901,6 +1081,10 @@ export function AdminClient() {
           <TabsTrigger value="routing" className="flex items-center gap-2" onClick={() => fetchMoves()}>
             <Warehouse className="w-4 h-4" />
             Routing
+          </TabsTrigger>
+          <TabsTrigger value="receiving" className="flex items-center gap-2" onClick={() => fetchReceivingLocations()}>
+            <PackagePlus className="w-4 h-4" />
+            Receiving
           </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Upload className="w-4 h-4" />
@@ -1442,6 +1626,322 @@ export function AdminClient() {
                                 title="Undo this move"
                               >
                                 <Undo2 className="w-3 h-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Receiving Tab */}
+        <TabsContent value="receiving" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Receiving Inventory</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Category Selection */}
+              <div>
+                <Label htmlFor="receivingCategory">Category</Label>
+                <select
+                  id="receivingCategory"
+                  value={receivingCategory}
+                  onChange={(e) => {
+                    setReceivingCategory(e.target.value);
+                    resetReceivingForm();
+                  }}
+                  className="w-full border rounded-md px-3 py-2 text-sm bg-background mt-1"
+                >
+                  <option value="">Select a category...</option>
+                  <option value="Extrusion">Extrusion</option>
+                  <option value="ACM">ACM</option>
+                  <option value="SPL">SPL</option>
+                  <option value="HPL">HPL</option>
+                  <option value="Rivet">Rivet</option>
+                  <option value="Misc">Misc</option>
+                </select>
+              </div>
+
+              {receivingCategory && (
+                <>
+                  {/* Common Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <Label htmlFor="receivingPartId">Part ID *</Label>
+                      <Input
+                        id="receivingPartId"
+                        value={receivingForm.partId}
+                        onChange={(e) => setReceivingForm({ ...receivingForm, partId: e.target.value })}
+                        placeholder="Enter Part ID"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="receivingPartName">Part Name *</Label>
+                      <Input
+                        id="receivingPartName"
+                        value={receivingForm.partName}
+                        onChange={(e) => setReceivingForm({ ...receivingForm, partName: e.target.value })}
+                        placeholder="Enter Part Name"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="receivingLocation">Location *</Label>
+                      <select
+                        id="receivingLocation"
+                        value={receivingForm.locationId}
+                        onChange={(e) => setReceivingForm({ ...receivingForm, locationId: e.target.value })}
+                        className="w-full border rounded-md px-3 py-2 text-sm bg-background mt-1"
+                        disabled={loadingReceivingLocations}
+                      >
+                        <option value="">Select location...</option>
+                        {receivingLocations.map((loc) => (
+                          <option key={loc.id} value={loc.locationId}>
+                            {loc.locationId} {loc.zone ? `(${loc.zone})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="receivingQty">Quantity *</Label>
+                      <Input
+                        id="receivingQty"
+                        type="number"
+                        min="1"
+                        value={receivingForm.quantity}
+                        onChange={(e) => setReceivingForm({ ...receivingForm, quantity: e.target.value })}
+                        placeholder="Enter quantity"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Category-specific fields: Extrusion */}
+                  {receivingCategory === "Extrusion" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <Label htmlFor="receivingColor">Color</Label>
+                        <Input
+                          id="receivingColor"
+                          value={receivingForm.color}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, color: e.target.value })}
+                          placeholder="Enter color"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingSizeW">Width</Label>
+                        <Input
+                          id="receivingSizeW"
+                          type="number"
+                          step="0.01"
+                          value={receivingForm.sizeW}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, sizeW: e.target.value })}
+                          placeholder="Width"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingSizeL">Length</Label>
+                        <Input
+                          id="receivingSizeL"
+                          type="number"
+                          step="0.01"
+                          value={receivingForm.sizeL}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, sizeL: e.target.value })}
+                          placeholder="Length"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingThickness">Thickness</Label>
+                        <Input
+                          id="receivingThickness"
+                          type="number"
+                          step="0.01"
+                          value={receivingForm.thickness}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, thickness: e.target.value })}
+                          placeholder="Thickness"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Category-specific fields: ACM / SPL / HPL */}
+                  {["ACM", "SPL", "HPL"].includes(receivingCategory) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                      <div>
+                        <Label htmlFor="receivingJobNumber">Job Number</Label>
+                        <Input
+                          id="receivingJobNumber"
+                          value={receivingForm.jobNumber}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, jobNumber: e.target.value })}
+                          placeholder="Job #"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingSizeW2">Width</Label>
+                        <Input
+                          id="receivingSizeW2"
+                          type="number"
+                          step="0.01"
+                          value={receivingForm.sizeW}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, sizeW: e.target.value })}
+                          placeholder="Width"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingSizeL2">Length</Label>
+                        <Input
+                          id="receivingSizeL2"
+                          type="number"
+                          step="0.01"
+                          value={receivingForm.sizeL}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, sizeL: e.target.value })}
+                          placeholder="Length"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingThickness2">Thickness</Label>
+                        <Input
+                          id="receivingThickness2"
+                          type="number"
+                          step="0.01"
+                          value={receivingForm.thickness}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, thickness: e.target.value })}
+                          placeholder="Thickness"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingBrand">Brand</Label>
+                        <Input
+                          id="receivingBrand"
+                          value={receivingForm.brand}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, brand: e.target.value })}
+                          placeholder="Brand"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Category-specific fields: Rivet / Misc */}
+                  {["Rivet", "Misc"].includes(receivingCategory) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="receivingBrand3">Brand</Label>
+                        <Input
+                          id="receivingBrand3"
+                          value={receivingForm.brand}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, brand: e.target.value })}
+                          placeholder="Brand"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingUnit">Unit</Label>
+                        <Input
+                          id="receivingUnit"
+                          value={receivingForm.unit}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, unit: e.target.value })}
+                          placeholder="Unit (e.g., box, each)"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="receivingPallet">Pallet</Label>
+                        <Input
+                          id="receivingPallet"
+                          value={receivingForm.pallet}
+                          onChange={(e) => setReceivingForm({ ...receivingForm, pallet: e.target.value })}
+                          placeholder="Pallet ID"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add to Queue Button */}
+                  <div className="flex justify-end">
+                    <Button onClick={handleAddToQueue}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add to Queue
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* Queue Display */}
+              {receivingQueue.length > 0 && (
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium">Queue ({receivingQueue.length} items)</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={handleClearQueue}>
+                        Clear
+                      </Button>
+                      <Button onClick={handleSubmitReceiving} disabled={submittingReceiving}>
+                        {submittingReceiving ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4 mr-2" />
+                            Submit All
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2">Part ID</th>
+                          <th className="text-left p-2">Part Name</th>
+                          <th className="text-left p-2">Category</th>
+                          <th className="text-left p-2">Location</th>
+                          <th className="text-right p-2">Qty</th>
+                          <th className="text-left p-2">Details</th>
+                          <th className="p-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {receivingQueue.map((item, index) => (
+                          <tr key={index} className="border-b">
+                            <td className="p-2 font-mono">{item.partId}</td>
+                            <td className="p-2">{item.partName}</td>
+                            <td className="p-2">{item.category}</td>
+                            <td className="p-2">{item.locationId}</td>
+                            <td className="p-2 text-right">{item.quantity}</td>
+                            <td className="p-2 text-muted-foreground text-xs">
+                              {item.color && `Color: ${item.color}`}
+                              {item.jobNumber && `Job: ${item.jobNumber}`}
+                              {item.brand && ` Brand: ${item.brand}`}
+                              {item.sizeW && ` W: ${item.sizeW}`}
+                              {item.sizeL && ` L: ${item.sizeL}`}
+                            </td>
+                            <td className="p-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveFromQueue(index)}
+                              >
+                                <X className="w-4 h-4" />
                               </Button>
                             </td>
                           </tr>
