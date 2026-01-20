@@ -11,12 +11,12 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerFooter,
+} from "@/components/ui/drawer";
 import { Label } from "@/components/ui/label";
 import { Lock, User, Settings, MessageSquare, Menu, AlertTriangle, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -32,7 +32,7 @@ export function KioskHeader() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [idleSeconds, setIdleSeconds] = useState(0);
   const [autoLockSeconds, setAutoLockSeconds] = useState(900); // 15 minutes
-  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
   const router = useRouter();
@@ -109,7 +109,7 @@ export function KioskHeader() {
       }
 
       toast({ title: "Report sent", description: "Thank you for your feedback", variant: "success" });
-      setReportDialogOpen(false);
+      setReportDrawerOpen(false);
       setReportMessage("");
     } catch {
       toast({ title: "Error", description: "Failed to send report", variant: "destructive" });
@@ -164,7 +164,7 @@ export function KioskHeader() {
                     Admin
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => setReportDialogOpen(true)}>
+                <DropdownMenuItem onClick={() => setReportDrawerOpen(true)}>
                   <AlertTriangle className="h-4 w-4 mr-2" />
                   Report Problem
                 </DropdownMenuItem>
@@ -179,38 +179,40 @@ export function KioskHeader() {
         </div>
       </div>
 
-      {/* Report Problem Dialog */}
-      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Report a Problem
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="reportMessage" className="mb-2 block">
-              Describe the issue
-            </Label>
-            <textarea
-              id="reportMessage"
-              value={reportMessage}
-              onChange={(e) => setReportMessage(e.target.value)}
-              placeholder="What went wrong?"
-              className="w-full h-32 px-3 py-2 text-sm rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+      {/* Report Problem Drawer */}
+      <Drawer open={reportDrawerOpen} onOpenChange={setReportDrawerOpen}>
+        <DrawerContent>
+          <div className="mx-auto w-full max-w-md">
+            <DrawerHeader>
+              <DrawerTitle className="flex items-center gap-2 justify-center sm:justify-start">
+                <AlertTriangle className="h-5 w-5" />
+                Report a Problem
+              </DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-4">
+              <Label htmlFor="reportMessage" className="mb-2 block">
+                Describe the issue
+              </Label>
+              <textarea
+                id="reportMessage"
+                value={reportMessage}
+                onChange={(e) => setReportMessage(e.target.value)}
+                placeholder="What went wrong?"
+                className="w-full h-32 px-3 py-2 text-sm rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <DrawerFooter>
+              <Button onClick={handleSubmitReport} disabled={submittingReport}>
+                {submittingReport && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Send Report
+              </Button>
+              <Button variant="outline" onClick={() => setReportDrawerOpen(false)}>
+                Cancel
+              </Button>
+            </DrawerFooter>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReportDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmitReport} disabled={submittingReport}>
-              {submittingReport && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Send Report
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </DrawerContent>
+      </Drawer>
     </header>
   );
 }

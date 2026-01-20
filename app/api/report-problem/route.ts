@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { requireAuth } from "@/lib/auth";
+import { db, schema } from "@/lib/db";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -53,6 +54,22 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // Create admin notification
+    await db.insert(schema.adminNotifications).values({
+      type: "problem_report",
+      title: `Problem Report from ${user.name}`,
+      summary: message.trim().slice(0, 200) + (message.length > 200 ? "..." : ""),
+      data: JSON.stringify({
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        message: message.trim(),
+        reportedAt: new Date().toISOString(),
+      }),
+      date: new Date(),
+      emailSentAt: new Date(),
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -22,6 +22,7 @@ import {
   Loader2,
   Check,
   AlertCircle,
+  AlertTriangle,
   Shield,
   User,
   Package,
@@ -107,6 +108,14 @@ interface NotificationMoveData {
   ts: string;
 }
 
+interface ProblemReportData {
+  userId: string;
+  userName: string;
+  userRole: string;
+  message: string;
+  reportedAt: string;
+}
+
 interface NotificationDetail {
   id: string;
   type: string;
@@ -115,7 +124,7 @@ interface NotificationDetail {
   date: string;
   emailSentAt: string | null;
   createdAt: string;
-  data: NotificationMoveData[];
+  data: NotificationMoveData[] | ProblemReportData;
 }
 
 export function AdminClient() {
@@ -1291,12 +1300,16 @@ export function AdminClient() {
                     <div className="flex items-start gap-3">
                       <div
                         className={`mt-1 ${
-                          notification.isRead
+                          notification.type === "problem_report"
+                            ? "text-amber-500"
+                            : notification.isRead
                             ? "text-muted-foreground"
                             : "text-primary"
                         }`}
                       >
-                        {notification.isRead ? (
+                        {notification.type === "problem_report" ? (
+                          <AlertTriangle className="w-5 h-5" />
+                        ) : notification.isRead ? (
                           <MailOpen className="w-5 h-5" />
                         ) : (
                           <Mail className="w-5 h-5" />
@@ -1729,110 +1742,147 @@ export function AdminClient() {
               </div>
             ) : notificationDialog.notification ? (
               <div className="space-y-6">
-                {/* Summary Stats */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-red-50 rounded-lg">
-                    <div className="text-2xl font-bold text-red-700">
-                      {
-                        notificationDialog.notification.data.filter(
-                          (m) => m.deltaQty < 0
-                        ).length
-                      }
-                    </div>
-                    <div className="text-sm text-muted-foreground">Pulls</div>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-700">
-                      {
-                        notificationDialog.notification.data.filter(
-                          (m) => m.deltaQty > 0
-                        ).length
-                      }
-                    </div>
-                    <div className="text-sm text-muted-foreground">Returns</div>
-                  </div>
-                  <div className="text-center p-4 bg-muted rounded-lg">
-                    <div className="text-2xl font-bold">
-                      {notificationDialog.notification.data.length}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Total Moves</div>
-                  </div>
-                </div>
+                {notificationDialog.notification.type === "problem_report" ? (
+                  // Problem Report Display
+                  (() => {
+                    const reportData = notificationDialog.notification.data as ProblemReportData;
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                          <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0" />
+                          <div>
+                            <div className="font-medium text-amber-800">Problem Report</div>
+                            <div className="text-sm text-amber-700">
+                              Submitted on {new Date(reportData.reportedAt).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
 
-                {/* Moves grouped by user */}
-                {(() => {
-                  const movesByUser: Record<string, NotificationMoveData[]> = {};
-                  for (const move of notificationDialog.notification.data) {
-                    if (!movesByUser[move.userName]) {
-                      movesByUser[move.userName] = [];
-                    }
-                    movesByUser[move.userName].push(move);
-                  }
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 bg-muted px-3 py-2 rounded-lg">
+                            <User className="w-4 h-4" />
+                            <span className="font-medium">{reportData.userName}</span>
+                            <span className="text-xs px-2 py-0.5 bg-background rounded capitalize">
+                              {reportData.userRole}
+                            </span>
+                          </div>
 
-                  return Object.entries(movesByUser).map(([userName, moves]) => (
-                    <div key={userName} className="space-y-2">
-                      <div className="flex items-center gap-2 bg-muted px-3 py-2 rounded-t-lg">
-                        <User className="w-4 h-4" />
-                        <span className="font-medium">{userName}</span>
-                        <span className="text-sm text-muted-foreground">
-                          ({moves.length} move{moves.length !== 1 ? "s" : ""})
-                        </span>
+                          <div className="border rounded-lg p-4">
+                            <div className="text-sm font-medium text-muted-foreground mb-2">
+                              Message
+                            </div>
+                            <p className="whitespace-pre-wrap">{reportData.message}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="border rounded-b-lg overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-muted/50">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-medium">Time</th>
-                              <th className="px-3 py-2 text-left font-medium">Action</th>
-                              <th className="px-3 py-2 text-left font-medium">Qty</th>
-                              <th className="px-3 py-2 text-left font-medium">Part</th>
-                              <th className="px-3 py-2 text-left font-medium">Location</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {moves.map((move, idx) => (
-                              <tr key={idx} className="border-t">
-                                <td className="px-3 py-2">
-                                  {new Date(move.ts).toLocaleTimeString("en-US", {
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                    hour12: true,
-                                  })}
-                                </td>
-                                <td className="px-3 py-2">
-                                  <span
-                                    className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                      move.deltaQty < 0
-                                        ? "bg-red-100 text-red-700"
-                                        : "bg-green-100 text-green-700"
-                                    }`}
-                                  >
-                                    {move.deltaQty < 0 ? "Pull" : "Return"}
+                    );
+                  })()
+                ) : (
+                  // Daily Summary Display (existing code)
+                  <>
+                    {/* Summary Stats */}
+                    {(() => {
+                      const moves = notificationDialog.notification.data as NotificationMoveData[];
+                      return (
+                        <>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="text-center p-4 bg-red-50 rounded-lg">
+                              <div className="text-2xl font-bold text-red-700">
+                                {moves.filter((m) => m.deltaQty < 0).length}
+                              </div>
+                              <div className="text-sm text-muted-foreground">Pulls</div>
+                            </div>
+                            <div className="text-center p-4 bg-green-50 rounded-lg">
+                              <div className="text-2xl font-bold text-green-700">
+                                {moves.filter((m) => m.deltaQty > 0).length}
+                              </div>
+                              <div className="text-sm text-muted-foreground">Returns</div>
+                            </div>
+                            <div className="text-center p-4 bg-muted rounded-lg">
+                              <div className="text-2xl font-bold">{moves.length}</div>
+                              <div className="text-sm text-muted-foreground">Total Moves</div>
+                            </div>
+                          </div>
+
+                          {/* Moves grouped by user */}
+                          {(() => {
+                            const movesByUser: Record<string, NotificationMoveData[]> = {};
+                            for (const move of moves) {
+                              if (!movesByUser[move.userName]) {
+                                movesByUser[move.userName] = [];
+                              }
+                              movesByUser[move.userName].push(move);
+                            }
+
+                            return Object.entries(movesByUser).map(([userName, userMoves]) => (
+                              <div key={userName} className="space-y-2">
+                                <div className="flex items-center gap-2 bg-muted px-3 py-2 rounded-t-lg">
+                                  <User className="w-4 h-4" />
+                                  <span className="font-medium">{userName}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    ({userMoves.length} move{userMoves.length !== 1 ? "s" : ""})
                                   </span>
-                                </td>
-                                <td className="px-3 py-2 font-medium">
-                                  {Math.abs(move.deltaQty)}
-                                </td>
-                                <td className="px-3 py-2">
-                                  <div className="font-medium">{move.partId}</div>
-                                  <div className="text-muted-foreground text-xs truncate max-w-[200px]">
-                                    {move.partName}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2">{move.locationId}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ));
-                })()}
+                                </div>
+                                <div className="border rounded-b-lg overflow-hidden">
+                                  <table className="w-full text-sm">
+                                    <thead className="bg-muted/50">
+                                      <tr>
+                                        <th className="px-3 py-2 text-left font-medium">Time</th>
+                                        <th className="px-3 py-2 text-left font-medium">Action</th>
+                                        <th className="px-3 py-2 text-left font-medium">Qty</th>
+                                        <th className="px-3 py-2 text-left font-medium">Part</th>
+                                        <th className="px-3 py-2 text-left font-medium">Location</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {userMoves.map((move, idx) => (
+                                        <tr key={idx} className="border-t">
+                                          <td className="px-3 py-2">
+                                            {new Date(move.ts).toLocaleTimeString("en-US", {
+                                              hour: "numeric",
+                                              minute: "2-digit",
+                                              hour12: true,
+                                            })}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <span
+                                              className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                                move.deltaQty < 0
+                                                  ? "bg-red-100 text-red-700"
+                                                  : "bg-green-100 text-green-700"
+                                              }`}
+                                            >
+                                              {move.deltaQty < 0 ? "Pull" : "Return"}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-2 font-medium">
+                                            {Math.abs(move.deltaQty)}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <div className="font-medium">{move.partId}</div>
+                                            <div className="text-muted-foreground text-xs truncate max-w-[200px]">
+                                              {move.partName}
+                                            </div>
+                                          </td>
+                                          <td className="px-3 py-2">{move.locationId}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ));
+                          })()}
 
-                {notificationDialog.notification.data.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No inventory moves for this day.
-                  </div>
+                          {moves.length === 0 && (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No inventory moves for this day.
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
                 )}
               </div>
             ) : null}

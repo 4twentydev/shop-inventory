@@ -13,7 +13,7 @@ import { relations } from "drizzle-orm";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
-export const notificationTypeEnum = pgEnum("notification_type", ["daily_summary"]);
+export const notificationTypeEnum = pgEnum("notification_type", ["daily_summary", "problem_report"]);
 
 // Users table
 export const users = pgTable("users", {
