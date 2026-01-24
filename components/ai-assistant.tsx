@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, X, Bot } from "lucide-react";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 
 export function AIAssistant() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useLocalStorage("ai_assistant_open", false);
 
   if (!open) {
     return (

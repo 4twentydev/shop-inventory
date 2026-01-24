@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,12 @@ interface CurrentUser {
 export function KioskHeader() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [idleSeconds, setIdleSeconds] = useState(0);
-  const [autoLockSeconds, setAutoLockSeconds] = useState(900); // 15 minutes
+  const [autoLockSeconds, setAutoLockSeconds] = useLocalStorage(
+    "auto_lock_seconds",
+    900, // 15 minutes default
+    true, // user-specific
+    user?.id
+  );
   const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);

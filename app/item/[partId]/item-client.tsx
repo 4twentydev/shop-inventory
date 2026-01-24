@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   Dialog,
   DialogContent,
@@ -71,9 +72,9 @@ export function ItemClient({ partId }: { partId: string }) {
     locationCode: string;
     currentQty: number;
   } | null>(null);
-  const [qtyInput, setQtyInput] = useState("");
-  const [wholeSkid, setWholeSkid] = useState(false);
-  const [note, setNote] = useState("");
+  const [qtyInput, setQtyInput] = useLocalStorage("item_qty_input", "");
+  const [wholeSkid, setWholeSkid] = useLocalStorage("item_whole_skid", false);
+  const [note, setNote] = useLocalStorage("item_note", "");
   const [submitting, setSubmitting] = useState(false);
   const [returnLocationId, setReturnLocationId] = useState<string>("");
   const [showLocationPicker, setShowLocationPicker] = useState(false);

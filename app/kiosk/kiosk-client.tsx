@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Search, Package, Loader2 } from "lucide-react";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 
 interface Part {
   id: string;
@@ -23,7 +24,7 @@ interface Part {
 }
 
 export function KioskClient() {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useLocalStorage("kiosk_search_query", "");
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -39,6 +40,14 @@ export function KioskClient() {
     }, 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Trigger search on mount if there's a persisted query
+  useEffect(() => {
+    if (query.trim()) {
+      searchParts(query);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   // Fetch current user
   useEffect(() => {

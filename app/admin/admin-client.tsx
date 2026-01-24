@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   Drawer,
   DrawerContent,
@@ -174,8 +175,8 @@ export function AdminClient() {
   const [parts, setParts] = useState<PartData[]>([]);
   const [loadingParts, setLoadingParts] = useState(false);
   const [partsPagination, setPartsPagination] = useState<PartsPagination | null>(null);
-  const [partsSearch, setPartsSearch] = useState("");
-  const [partsCategory, setPartsCategory] = useState("");
+  const [partsSearch, setPartsSearch] = useLocalStorage("admin_parts_search", "");
+  const [partsCategory, setPartsCategory] = useLocalStorage("admin_parts_category", "");
   const [categories, setCategories] = useState<string[]>([]);
   const [editPartDialog, setEditPartDialog] = useState<{
     open: boolean;
@@ -253,7 +254,7 @@ export function AdminClient() {
   // Material Routing state
   const [moves, setMoves] = useState<any[]>([]);
   const [loadingMoves, setLoadingMoves] = useState(false);
-  const [movesFilters, setMovesFilters] = useState({
+  const [movesFilters, setMovesFilters] = useLocalStorage("admin_moves_filters", {
     partId: "",
     locationId: "",
     userId: "",
@@ -271,7 +272,7 @@ export function AdminClient() {
   const [transferring, setTransferring] = useState(false);
 
   // Receiving state
-  const [receivingCategory, setReceivingCategory] = useState("");
+  const [receivingCategory, setReceivingCategory] = useLocalStorage("admin_receiving_category", "");
   const [receivingForm, setReceivingForm] = useState({
     partId: "",
     partName: "",
@@ -311,7 +312,7 @@ export function AdminClient() {
   } | null>(null);
 
   // Navigation state
-  const [activeSection, setActiveSection] = useState("users");
+  const [activeSection, setActiveSection] = useLocalStorage("admin_active_section", "users");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Navigation items
