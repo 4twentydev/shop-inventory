@@ -51,8 +51,10 @@ import {
   Menu,
   Copy,
   ClipboardPaste,
+  ClipboardList,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { QuarterlyInventorySection } from "./quarterly-inventory-section";
 
 interface UserData {
   id: string;
@@ -321,6 +323,7 @@ export function AdminClient() {
     { id: "parts", label: "Parts", icon: Package },
     { id: "routing", label: "Routing", icon: Warehouse },
     { id: "receiving", label: "Receiving", icon: PackagePlus },
+    { id: "quarterly", label: "Quarterly Inventory", icon: ClipboardList },
     { id: "import", label: "Import", icon: Upload },
     { id: "export", label: "Export", icon: Download },
     { id: "notifications", label: "Notifications", icon: Bell, badge: unreadCount },
@@ -1735,6 +1738,9 @@ export function AdminClient() {
               </Card>
             </div>
           )}
+
+          {/* Quarterly Inventory Section */}
+          {activeSection === "quarterly" && <QuarterlyInventorySection />}
 
           {/* Notifications Section */}
           {activeSection === "notifications" && (

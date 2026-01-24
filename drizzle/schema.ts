@@ -14,6 +14,8 @@ import { relations } from "drizzle-orm";
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
 export const notificationTypeEnum = pgEnum("notification_type", ["daily_summary", "problem_report"]);
+export const quarterlyCountStatusEnum = pgEnum("quarterly_count_status", ["in_progress", "completed", "cancelled"]);
+export const quarterlyCountRecordStatusEnum = pgEnum("quarterly_count_record_status", ["pending", "counted", "verified"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -138,6 +140,46 @@ export const adminNotificationReads = pgTable(
   ]
 );
 
+// Quarterly counts table (count sessions/cycles)
+export const quarterlyCounts = pgTable("quarterly_counts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description"),
+  status: quarterlyCountStatusEnum("status").notNull().default("in_progress"),
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+// Quarterly count records table (individual part/location counts)
+export const quarterlyCountRecords = pgTable(
+  "quarterly_count_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    countId: uuid("count_id")
+      .notNull()
+      .references(() => quarterlyCounts.id, { onDelete: "cascade" }),
+    partId: uuid("part_id")
+      .notNull()
+      .references(() => parts.id, { onDelete: "cascade" }),
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => locations.id, { onDelete: "cascade" }),
+    expectedQty: integer("expected_qty").notNull().default(0),
+    countedQty: integer("counted_qty"),
+    variance: integer("variance"),
+    status: quarterlyCountRecordStatusEnum("status").notNull().default("pending"),
+    countedBy: uuid("counted_by").references(() => users.id),
+    countedAt: timestamp("counted_at"),
+    notes: text("notes"),
+  },
+  (table) => [
+    unique("quarterly_count_record_unique").on(table.countId, table.partId, table.locationId),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
@@ -203,6 +245,33 @@ export const adminNotificationReadsRelations = relations(adminNotificationReads,
   }),
 }));
 
+export const quarterlyCountsRelations = relations(quarterlyCounts, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [quarterlyCounts.createdBy],
+    references: [users.id],
+  }),
+  records: many(quarterlyCountRecords),
+}));
+
+export const quarterlyCountRecordsRelations = relations(quarterlyCountRecords, ({ one }) => ({
+  count: one(quarterlyCounts, {
+    fields: [quarterlyCountRecords.countId],
+    references: [quarterlyCounts.id],
+  }),
+  part: one(parts, {
+    fields: [quarterlyCountRecords.partId],
+    references: [parts.id],
+  }),
+  location: one(locations, {
+    fields: [quarterlyCountRecords.locationId],
+    references: [locations.id],
+  }),
+  counter: one(users, {
+    fields: [quarterlyCountRecords.countedBy],
+    references: [users.id],
+  }),
+}));
+
 // Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -216,3 +285,7 @@ export type InventoryMove = typeof inventoryMoves.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 export type AdminNotification = typeof adminNotifications.$inferSelect;
 export type AdminNotificationRead = typeof adminNotificationReads.$inferSelect;
+export type QuarterlyCount = typeof quarterlyCounts.$inferSelect;
+export type NewQuarterlyCount = typeof quarterlyCounts.$inferInsert;
+export type QuarterlyCountRecord = typeof quarterlyCountRecords.$inferSelect;
+export type NewQuarterlyCountRecord = typeof quarterlyCountRecords.$inferInsert;
