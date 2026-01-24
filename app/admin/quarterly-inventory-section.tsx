@@ -25,6 +25,8 @@ import {
   FileText,
   Trash2,
   Edit,
+  Search,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,7 @@ interface QuarterlyCount {
 
 interface CountRecord {
   id: string;
+  partUuid: string;
   partId: string;
   partName: string;
   color: string | null;
@@ -53,6 +56,7 @@ interface CountRecord {
   brand: string | null;
   pallet: string | null;
   unit: string | null;
+  locationUuid: string;
   locationId: string;
   locationType: string | null;
   locationZone: string | null;
@@ -68,9 +72,24 @@ interface CountRecord {
 
 interface LocationGroup {
   locationId: string;
+  locationUuid: string;
   locationType: string | null;
   locationZone: string | null;
   records: CountRecord[];
+}
+
+interface PartOption {
+  id: string;
+  partId: string;
+  partName: string;
+  category: string | null;
+}
+
+interface LocationOption {
+  id: string;
+  locationId: string;
+  type: string | null;
+  zone: string | null;
 }
 
 interface CountDetails {
@@ -100,6 +119,19 @@ export function QuarterlyInventorySection() {
   const [applyAdjustments, setApplyAdjustments] = useState(true);
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [addItemDialog, setAddItemDialog] = useState<{ locationUuid: string; locationId: string } | null>(null);
+  const [addingItem, setAddingItem] = useState(false);
+  const [availableParts, setAvailableParts] = useState<PartOption[]>([]);
+  const [partSearchQuery, setPartSearchQuery] = useState("");
+  const [selectedPart, setSelectedPart] = useState<PartOption | null>(null);
+  const [newItemExpectedQty, setNewItemExpectedQty] = useState("0");
+  const [loadingParts, setLoadingParts] = useState(false);
+  const [deleteRecordDialog, setDeleteRecordDialog] = useState<{ recordId: string; partId: string } | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState(false);
+  const [addNewLocationDialog, setAddNewLocationDialog] = useState(false);
+  const [availableLocations, setAvailableLocations] = useState<LocationOption[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<LocationOption | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -316,6 +348,133 @@ export function QuarterlyInventorySection() {
     }
   };
 
+  const fetchParts = async (query: string) => {
+    setLoadingParts(true);
+    try {
+      const res = await fetch(`/api/admin/parts?query=${encodeURIComponent(query)}&limit=50`);
+      if (!res.ok) throw new Error("Failed to fetch parts");
+      const data = await res.json();
+      setAvailableParts(data.parts);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to load parts",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingParts(false);
+    }
+  };
+
+  const fetchLocations = async () => {
+    setLoadingLocations(true);
+    try {
+      const res = await fetch("/api/admin/locations");
+      if (!res.ok) throw new Error("Failed to fetch locations");
+      const data = await res.json();
+      setAvailableLocations(data.locations);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to load locations",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  const openAddNewLocationDialog = () => {
+    setAddNewLocationDialog(true);
+    setSelectedLocation(null);
+    fetchLocations();
+  };
+
+  const openAddItemDialog = (locationUuid: string, locationId: string) => {
+    setAddItemDialog({ locationUuid, locationId });
+    setSelectedPart(null);
+    setNewItemExpectedQty("0");
+    setPartSearchQuery("");
+    setAvailableParts([]);
+  };
+
+  const selectLocationAndContinue = () => {
+    if (!selectedLocation) return;
+    setAddNewLocationDialog(false);
+    openAddItemDialog(selectedLocation.id, selectedLocation.locationId);
+  };
+
+  const addItemToCount = async () => {
+    if (!activeCount || !addItemDialog || !selectedPart) return;
+
+    setAddingItem(true);
+    try {
+      const res = await fetch(`/api/admin/quarterly-count/${activeCount.count.id}/records`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partId: selectedPart.id,
+          locationId: addItemDialog.locationUuid,
+          expectedQty: parseInt(newItemExpectedQty) || 0,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add item");
+      }
+
+      toast({
+        title: "Success",
+        description: `Added ${selectedPart.partId} to ${addItemDialog.locationId}`,
+      });
+
+      setAddItemDialog(null);
+      loadCountDetails(activeCount.count.id);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add item",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  const deleteRecordFromCount = async () => {
+    if (!activeCount || !deleteRecordDialog) return;
+
+    setDeletingRecord(true);
+    try {
+      const res = await fetch(
+        `/api/admin/quarterly-count/${activeCount.count.id}/records?recordId=${deleteRecordDialog.recordId}`,
+        { method: "DELETE" }
+      );
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete item");
+      }
+
+      toast({
+        title: "Success",
+        description: `Removed ${deleteRecordDialog.partId} from count`,
+      });
+
+      setDeleteRecordDialog(null);
+      loadCountDetails(activeCount.count.id);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete item",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingRecord(false);
+    }
+  };
+
   const exportCount = async (countId: string, format: "xlsx" | "csv") => {
     try {
       const res = await fetch(`/api/admin/quarterly-count/${countId}/export?format=${format}`);
@@ -444,6 +603,13 @@ export function QuarterlyInventorySection() {
         </Card>
 
         <div className="space-y-4">
+          {activeCount.count.status === "in_progress" && (
+            <Button variant="outline" onClick={openAddNewLocationDialog} className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Item to New Location
+            </Button>
+          )}
+
           {activeCount.locations.map((location) => {
             const allCounted = location.records.every((r) => r.status !== "pending");
             const hasPending = location.records.some((r) => r.status === "pending");
@@ -470,6 +636,16 @@ export function QuarterlyInventorySection() {
                           {location.records.filter((r) => r.status === "pending").length} Pending
                         </Badge>
                       )}
+                      {activeCount.count.status === "in_progress" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openAddItemDialog(location.locationUuid, location.locationId)}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Item
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -487,7 +663,10 @@ export function QuarterlyInventorySection() {
                             <th className="text-right p-2">Variance</th>
                             <th className="text-center p-2">Status</th>
                             {activeCount.count.status === "in_progress" && (
-                              <th className="text-center p-2 w-32">Count</th>
+                              <>
+                                <th className="text-center p-2 w-32">Count</th>
+                                <th className="text-center p-2 w-12"></th>
+                              </>
                             )}
                           </tr>
                         </thead>
@@ -536,22 +715,34 @@ export function QuarterlyInventorySection() {
                                 )}
                               </td>
                               {activeCount.count.status === "in_progress" && (
-                                <td className="p-2">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    placeholder={record.expectedQty.toString()}
-                                    value={countRecords[record.id] || ""}
-                                    onChange={(e) =>
-                                      setCountRecords({
-                                        ...countRecords,
-                                        [record.id]: e.target.value,
-                                      })
-                                    }
-                                    disabled={record.status !== "pending"}
-                                    className="h-8 text-sm"
-                                  />
-                                </td>
+                                <>
+                                  <td className="p-2">
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      placeholder={record.expectedQty.toString()}
+                                      value={countRecords[record.id] || ""}
+                                      onChange={(e) =>
+                                        setCountRecords({
+                                          ...countRecords,
+                                          [record.id]: e.target.value,
+                                        })
+                                      }
+                                      disabled={record.status !== "pending"}
+                                      className="h-8 text-sm"
+                                    />
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setDeleteRecordDialog({ recordId: record.id, partId: record.partId })}
+                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                </>
                               )}
                             </tr>
                           ))}
@@ -619,6 +810,176 @@ export function QuarterlyInventorySection() {
                   <CheckCircle className="h-4 w-4 mr-2" />
                 )}
                 Complete Count
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={addItemDialog !== null} onOpenChange={() => setAddItemDialog(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Item to {addItemDialog?.locationId}</DialogTitle>
+              <DialogDescription>
+                Search for a part to add to this location in the count.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="partSearch">Search Parts</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="partSearch"
+                    placeholder="Search by Part ID, name, or category..."
+                    value={partSearchQuery}
+                    onChange={(e) => setPartSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        fetchParts(partSearchQuery);
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fetchParts(partSearchQuery)}
+                    disabled={loadingParts}
+                  >
+                    {loadingParts ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {availableParts.length > 0 && (
+                <div className="border rounded-lg max-h-48 overflow-y-auto">
+                  {availableParts.map((part) => (
+                    <div
+                      key={part.id}
+                      className={`p-2 cursor-pointer hover:bg-muted flex justify-between items-center ${
+                        selectedPart?.id === part.id ? "bg-muted" : ""
+                      }`}
+                      onClick={() => setSelectedPart(part)}
+                    >
+                      <div>
+                        <div className="font-mono text-sm">{part.partId}</div>
+                        <div className="text-sm text-muted-foreground">{part.partName}</div>
+                      </div>
+                      {selectedPart?.id === part.id && (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedPart && (
+                <div className="p-3 bg-muted rounded-lg">
+                  <div className="text-sm font-medium">Selected Part:</div>
+                  <div className="font-mono">{selectedPart.partId}</div>
+                  <div className="text-sm text-muted-foreground">{selectedPart.partName}</div>
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="expectedQty">Expected Quantity</Label>
+                <Input
+                  id="expectedQty"
+                  type="number"
+                  min="0"
+                  value={newItemExpectedQty}
+                  onChange={(e) => setNewItemExpectedQty(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Set to 0 for items not currently in inventory at this location
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddItemDialog(null)}>
+                Cancel
+              </Button>
+              <Button onClick={addItemToCount} disabled={addingItem || !selectedPart}>
+                {addingItem ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                Add Item
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={deleteRecordDialog !== null} onOpenChange={() => setDeleteRecordDialog(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Remove Item from Count</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to remove {deleteRecordDialog?.partId} from this count? This
+                action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteRecordDialog(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={deleteRecordFromCount}
+                disabled={deletingRecord}
+              >
+                {deletingRecord ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Remove
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={addNewLocationDialog} onOpenChange={setAddNewLocationDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Select Location</DialogTitle>
+              <DialogDescription>
+                Choose a location to add an item to.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {loadingLocations ? (
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="border rounded-lg max-h-64 overflow-y-auto">
+                  {availableLocations.map((loc) => (
+                    <div
+                      key={loc.id}
+                      className={`p-3 cursor-pointer hover:bg-muted flex justify-between items-center ${
+                        selectedLocation?.id === loc.id ? "bg-muted" : ""
+                      }`}
+                      onClick={() => setSelectedLocation(loc)}
+                    >
+                      <div>
+                        <div className="font-medium">{loc.locationId}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {loc.type} {loc.zone && `• ${loc.zone}`}
+                        </div>
+                      </div>
+                      {selectedLocation?.id === loc.id && (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddNewLocationDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={selectLocationAndContinue} disabled={!selectedLocation}>
+                Continue
               </Button>
             </DialogFooter>
           </DialogContent>

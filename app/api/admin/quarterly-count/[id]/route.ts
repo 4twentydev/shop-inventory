@@ -36,6 +36,7 @@ export async function GET(
     const records = await db
       .select({
         id: schema.quarterlyCountRecords.id,
+        partUuid: schema.parts.id,
         partId: schema.parts.partId,
         partName: schema.parts.partName,
         color: schema.parts.color,
@@ -47,6 +48,7 @@ export async function GET(
         brand: schema.parts.brand,
         pallet: schema.parts.pallet,
         unit: schema.parts.unit,
+        locationUuid: schema.locations.id,
         locationId: schema.locations.locationId,
         locationType: schema.locations.type,
         locationZone: schema.locations.zone,
@@ -73,6 +75,7 @@ export async function GET(
       string,
       {
         locationId: string;
+        locationUuid: string;
         locationType: string | null;
         locationZone: string | null;
         records: typeof records;
@@ -83,6 +86,7 @@ export async function GET(
       if (!locationGroups[record.locationId]) {
         locationGroups[record.locationId] = {
           locationId: record.locationId,
+          locationUuid: record.locationUuid,
           locationType: record.locationType,
           locationZone: record.locationZone,
           records: [],
