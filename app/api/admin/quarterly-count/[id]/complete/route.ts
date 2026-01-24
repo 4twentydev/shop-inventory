@@ -55,7 +55,7 @@ export async function POST(
     // If applyAdjustments is true, update actual inventory and create move records
     if (applyAdjustments) {
       for (const record of records) {
-        if (record.variance !== 0 && record.countedQty !== null) {
+        if (record.variance !== null && record.variance !== 0 && record.countedQty !== null) {
           // Update inventory quantity
           await db
             .update(schema.inventory)
