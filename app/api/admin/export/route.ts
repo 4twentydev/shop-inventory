@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, schema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import * as XLSX from "xlsx";
+import { eq } from "drizzle-orm";
 
 export async function GET() {
   try {
@@ -33,8 +34,8 @@ export async function GET() {
         quantity: schema.inventory.qty,
       })
       .from(schema.inventory)
-      .innerJoin(schema.parts, (eb) => eb.eq(schema.inventory.partId, schema.parts.id))
-      .innerJoin(schema.locations, (eb) => eb.eq(schema.inventory.locationId, schema.locations.id));
+      .innerJoin(schema.parts, eq(schema.inventory.partId, schema.parts.id))
+      .innerJoin(schema.locations, eq(schema.inventory.locationId, schema.locations.id));
 
     // Create workbook
     const workbook = XLSX.utils.book_new();
