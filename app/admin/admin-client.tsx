@@ -22,6 +22,7 @@ import {
 import {
   Users,
   Upload,
+  Download,
   Settings,
   Plus,
   Pencil,
@@ -321,6 +322,7 @@ export function AdminClient() {
     { id: "routing", label: "Routing", icon: Warehouse },
     { id: "receiving", label: "Receiving", icon: PackagePlus },
     { id: "import", label: "Import", icon: Upload },
+    { id: "export", label: "Export", icon: Download },
     { id: "notifications", label: "Notifications", icon: Bell, badge: unreadCount },
     { id: "settings", label: "Settings", icon: Settings },
   ];
@@ -1660,6 +1662,77 @@ export function AdminClient() {
               )}
             </CardContent>
           </Card>
+            </div>
+          )}
+
+          {/* Export Section */}
+          {activeSection === "export" && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Download className="w-5 h-5" />
+                    Export Data
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Download all inventory data as an Excel file. This includes parts, locations, and current inventory quantities.
+                  </p>
+
+                  <Button
+                    onClick={async () => {
+                      try {
+                        toast({
+                          title: "Exporting...",
+                          description: "Preparing your data for download",
+                        });
+
+                        const response = await fetch("/api/admin/export");
+
+                        if (!response.ok) {
+                          const error = await response.json();
+                          throw new Error(error.error || "Export failed");
+                        }
+
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `inventory-export-${new Date().toISOString().split("T")[0]}.xlsx`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+
+                        toast({
+                          title: "Export successful",
+                          description: "Your data has been downloaded",
+                        });
+                      } catch (error) {
+                        toast({
+                          title: "Export failed",
+                          description: error instanceof Error ? error.message : "Failed to export data",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Excel File
+                  </Button>
+
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    <p className="font-medium">The export includes:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Parts sheet: All parts with their details (ID, name, color, category, dimensions, etc.)</li>
+                      <li>Locations sheet: All storage locations with type and zone</li>
+                      <li>Inventory sheet: Current quantities for each part at each location</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
 
