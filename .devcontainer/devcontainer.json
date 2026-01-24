@@ -7,7 +7,7 @@
       "version": "20"
     }
   },
-  "postCreateCommand": "corepack enable && corepack prepare pnpm@latest --activate && npm i -g bun",
+  "postCreateCommand": "bash .devcontainer/postCreate.sh",
   "customizations": {
     "vscode": {
       "extensions": [
