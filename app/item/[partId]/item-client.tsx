@@ -51,6 +51,9 @@ interface Part {
   partName: string;
   color: string | null;
   category: string | null;
+  jobNumber: string | null;
+  sizeW: number | null;
+  sizeL: number | null;
   totalQty: number;
 }
 
@@ -282,6 +285,22 @@ export function ItemClient({ partId }: { partId: string }) {
   }
 
   const { part, inventory, recentMoves } = data;
+  const detailSegments: string[] = [];
+  const isPanelCategory = part.category
+    ? ["ACM", "SPL", "HPL"].includes(part.category)
+    : false;
+
+  if (isPanelCategory) {
+    if (part.jobNumber) detailSegments.push(`Job ${part.jobNumber}`);
+    if (part.color) detailSegments.push(part.color);
+    if (part.sizeW && part.sizeL) {
+      detailSegments.push(`${part.sizeW}×${part.sizeL}`);
+    }
+    if (part.category) detailSegments.push(part.category);
+  } else {
+    if (part.color) detailSegments.push(part.color);
+    if (part.category) detailSegments.push(part.category);
+  }
 
   return (
     <div className="space-y-4">
@@ -297,19 +316,17 @@ export function ItemClient({ partId }: { partId: string }) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <CardTitle className="text-2xl">{part.partName}</CardTitle>
-              <div className="flex items-center gap-3 mt-2 text-muted-foreground">
-                <span className="font-mono">{part.partId}</span>
-                {part.color && (
-                  <>
-                    <span>•</span>
-                    <span>{part.color}</span>
-                  </>
-                )}
-                {part.category && (
-                  <>
-                    <span>•</span>
-                    <span>{part.category}</span>
-                  </>
+              <div className="mt-2 text-muted-foreground space-y-1">
+                <div className="font-mono text-sm">{part.partId}</div>
+                {detailSegments.length > 0 && (
+                  <div className="flex flex-wrap items-center text-sm">
+                    {detailSegments.map((segment, index) => (
+                      <span key={`${segment}-${index}`} className="flex items-center">
+                        {index > 0 && <span className="mx-2">–</span>}
+                        <span>{segment}</span>
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
